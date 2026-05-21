@@ -5,83 +5,129 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PUP Audit - Reimbursement & Liquidation</title>
     <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.13.3/dist/index.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.13.3/dist/jspreadsheet.min.css" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/jsuites@4.3.2/dist/jsuites.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsuites@4.3.2/dist/jsuites.min.css" type="text/css" />
 </head>
 <body>
     <div class="layout">
         <aside class="sidebar">
             <h2 class="logo">PUP Audit</h2>
-            <nav>
-                <ul class="nav-links">
-                    <li class="active" onclick="switchTab('Reimbursement', this)">Reimbursements</li>
-                    <li onclick="switchTab('Liquidation', this)">Liquidations</li>
-                </ul>
+            <nav class="sidebar-nav-container">
+                <ul class="nav-links" id="sidebarNav"></ul>
             </nav>
+            <div class="sidebar-utils">
+                <button onclick="backupDatabase()" class="util-btn">📥 Backup Data</button>
+                <input type="file" id="restoreFile" accept=".json" style="display:none;" onchange="restoreDatabase(event)">
+                <button onclick="document.getElementById('restoreFile').click()" class="util-btn">📤 Restore Data</button>
+            </div>
         </aside>
 
         <main class="main-content">
             <header>
-                <h1 id="pageTitle">Reimbursements</h1>
-                <p>Search and review submitted cases</p>
+                <h1 id="pageTitle">Reimbursements - All Years</h1>
+                <p id="pageSubtitle">Search and review submitted cases</p>
             </header>
             
-            <button id="addNewBtn" onclick="openAddModal()">+ Add New Record</button>
+            <div class="dashboard-row">
+                <div class="dash-widget dash-total"><span class="dash-title">Total Cases</span><span class="dash-value" id="dashTotal">0</span></div>
+                <div class="dash-widget dash-pending"><span class="dash-title">Pending Review</span><span class="dash-value warning" id="dashPending">0</span></div>
+                <div class="dash-widget dash-approved"><span class="dash-title">Approved</span><span class="dash-value success" id="dashApproved">0</span></div>
+                <div class="dash-widget dash-rejected"><span class="dash-title">Needs Revision</span><span class="dash-value danger" id="dashRejected">0</span></div>
+            </div>
+
+            <div class="main-actions" style="margin-bottom: 20px;">
+                <button id="addNewBtn" class="primary-btn" onclick="openAddModal()">+ Add New Record</button>
+                <button id="emptyBinBtn" class="danger-btn" onclick="emptyBin()" style="display: none;">🗑️ Empty Recycle Bin</button>
+            </div>
 
             <section class="search-section">
-                <input type="text" id="searchInput" placeholder="Search by Case Name...">
+                <input type="text" id="searchInput" placeholder="Search by Case Name or Serial...">
                 <input type="date" id="dateInput">
                 <button id="searchBtn" onclick="searchCases()">Search</button>
             </section>
 
-            <section class="results-section" id="resultsContainer">
-                </section>
+            <section class="results-section" id="resultsContainer"></section>
         </main>
     </div>
 
     <div id="fileModal" class="modal">
-        <div class="modal-content file-modal-layout">
-            <span class="close-btn" onclick="closeModal()">&times;</span>
-            
-            <div class="file-viewer-section">
-                <h2 id="modalTitle">Case Details</h2>
-                <div id="fileViewer">
-                    <iframe id="documentFrame" src="" width="100%" height="500px" style="border: none; background: #eee;"></iframe>
-                </div>
+        <div class="modal-content spreadsheet-modal" id="worksheetModalContent">
+            <div class="window-controls">
+                <span class="win-btn" onclick="minimizeModal()" title="Minimize">_</span>
+                <span class="win-btn" onclick="toggleFullScreen()" id="maxBtn" title="Fullscreen">□</span>
+                <span class="win-btn close-btn" onclick="closeModal()" title="Close">&times;</span>
             </div>
 
-            <div class="comments-section">
-                <h3>Audit Comments</h3>
-                <div id="commentsList" class="comments-list">
-                    </div>
-                <form id="commentForm" onsubmit="submitComment(event)">
-                    <input type="text" id="newCommentText" placeholder="Add a finding or comment..." required>
-                    <button type="submit">Post</button>
-                </form>
+            <h2 id="modalTitle">Audit Worksheet</h2>
+            
+            <div class="excel-toolbar">
+                <input type="file" id="excelUpload" accept=".xlsx, .xls, .csv" onchange="importExcel(event)" style="display: none;">
+                <button class="tool-btn load-btn" onclick="document.getElementById('excelUpload').click()">📂 Open</button>
+                <button class="tool-btn export-btn" onclick="exportExcel()">⬇️ Download Excel</button>
+                <button class="tool-btn pdf-btn" id="pdfBtn" onclick="generatePDF()">📄 Print PDF</button>
+                <button class="tool-btn save-btn" onclick="closeModal()">💾 Save & Close</button>
+                <button class="tool-btn delete-btn" onclick="deleteCurrentCase()">🗑️ Move to Bin</button>
+                
+                <div class="status-control">
+                    <label for="caseStatusDropdown">Audit Status: </label>
+                    <select id="caseStatusDropdown" onchange="changeCaseStatus(this.value)">
+                        <option value="Pending">Pending Review</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected / Needs Revision</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="excel-container" id="excelViewer"><p class="placeholder-text" style="padding: 20px;">Loading...</p></div>
+
+            <div class="audit-log-section">
+                <h3>Audit Log & Comments</h3>
+                <div class="log-history" id="logHistory"></div>
+                <div class="log-input-area">
+                    <input type="text" id="newLogInput" placeholder="Add a note or explain a status change...">
+                    <button onclick="addAuditLog()">Post Note</button>
+                </div>
             </div>
         </div>
     </div>
 
     <div id="addModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 800px;">
             <span class="close-btn" onclick="closeAddModal()">&times;</span>
             <h2>Submit New Record</h2>
+            <p class="helper-text">Fill out the template data below to auto-generate the Excel file.</p>
+            
             <form id="addRecordForm" onsubmit="submitNewRecord(event)">
-                <div class="form-group">
-                    <label for="newName">Case Name / Description:</label>
-                    <input type="text" id="newName" required placeholder="e.g., Q3 Travel Allowance">
+                
+                <div style="background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="newFile">Upload Custom File (Optional - Overrides template below):</label>
+                        <input type="file" id="newFile" accept=".pdf, image/*, .xlsx, .xls">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="newDate">Submission Date:</label>
-                    <input type="date" id="newDate" required>
+                
+                <div class="form-grid">
+                    <div class="form-group"><label>No.</label><input type="text" id="f_no"></div>
+                    <div class="form-group"><label>Fund</label><input type="text" id="f_fund"></div>
+                    <div class="form-group"><label>Check Date</label><input type="date" id="f_checkDate"></div>
+                    <div class="form-group"><label>Accountable Officer</label><input type="text" id="f_officer"></div>
+                    <div class="form-group"><label>Transaction Type</label><input type="text" id="f_transType"></div>
+                    <div class="form-group"><label>SO Number</label><input type="text" id="f_soNum"></div>
+                    <div class="form-group"><label>SO Date</label><input type="date" id="f_soDate"></div>
+                    <div class="form-group"><label>Project Description</label><input type="text" id="f_project" placeholder="(Acts as Case Name)"></div>
+                    <div class="form-group"><label>Inclusive Dates</label><input type="text" id="f_incDates"></div>
+                    <div class="form-group"><label>Amount Granted</label><input type="text" id="f_amtGranted"></div>
+                    <div class="form-group"><label>Amount</label><input type="text" id="f_amtLiq"></div>
+                    <div class="form-group"><label>Auditor</label><input type="text" id="f_auditor"></div>
+                    <div class="form-group full-width"><label>Date Assign</label><input type="date" id="f_dateAssign"></div>
                 </div>
-                <div class="form-group">
-                    <label for="newSummary">Summary / Notes:</label>
-                    <textarea id="newSummary" rows="4" required placeholder="Brief description of the expenses..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="newFile">Upload Document (PDF/Image):</label>
-                    <input type="file" id="newFile" accept=".pdf, image/*" required>
-                </div>
-                <button type="submit" class="submit-btn">Submit Case</button>
+
+                <button type="submit" class="submit-btn" style="margin-top: 20px;">Submit Case & Generate Template</button>
             </form>
         </div>
     </div>
