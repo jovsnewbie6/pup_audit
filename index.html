@@ -30,11 +30,11 @@
         <main class="main-content">
             <header>
                 <h1 id="pageTitle">Reimbursements - All Years</h1>
-                <p id="pageSubtitle">Search and review submitted cases</p>
+                <p id="pageSubtitle">Search and review submitted records</p>
             </header>
             
             <div class="dashboard-row">
-                <div class="dash-widget dash-total"><span class="dash-title">Total Cases</span><span class="dash-value" id="dashTotal">0</span></div>
+                <div class="dash-widget dash-total"><span class="dash-title">Total Records</span><span class="dash-value" id="dashTotal">0</span></div>
                 <div class="dash-widget dash-pending"><span class="dash-title">Pending Review</span><span class="dash-value warning" id="dashPending">0</span></div>
                 <div class="dash-widget dash-approved"><span class="dash-title">Approved</span><span class="dash-value success" id="dashApproved">0</span></div>
                 <div class="dash-widget dash-rejected"><span class="dash-title">Needs Revision</span><span class="dash-value danger" id="dashRejected">0</span></div>
@@ -46,9 +46,9 @@
             </div>
 
             <section class="search-section">
-                <input type="text" id="searchInput" placeholder="Search by Case Name or Serial...">
+                <input type="text" id="searchInput" placeholder="Search by Record Name or Serial...">
                 <input type="date" id="dateInput">
-                <button id="searchBtn" onclick="searchCases()">Search</button>
+                <button id="searchBtn" onclick="searchRecords()">Search</button>
             </section>
 
             <section class="results-section" id="resultsContainer"></section>
@@ -67,15 +67,16 @@
             
             <div class="excel-toolbar">
                 <input type="file" id="excelUpload" accept=".xlsx, .xls, .csv" onchange="importExcel(event)" style="display: none;">
-                <button class="tool-btn load-btn" onclick="document.getElementById('excelUpload').click()">📂 Open</button>
+                <button class="tool-btn load-btn" onclick="document.getElementById('excelUpload').click()">📂 Open Excel File</button>
                 <button class="tool-btn export-btn" onclick="exportExcel()">⬇️ Download Excel</button>
-                <button class="tool-btn pdf-btn" id="pdfBtn" onclick="generatePDF()">📄 Print PDF</button>
+                <button class="tool-btn add-row-btn" onclick="openAddRowModal()">➕ Add Row via Form</button>
+                <button class="tool-btn pdf-btn" id="pdfBtn" onclick="generatePDF()">📄 Print PDF Report</button>
                 <button class="tool-btn save-btn" onclick="closeModal()">💾 Save & Close</button>
-                <button class="tool-btn delete-btn" onclick="deleteCurrentCase()">🗑️ Move to Bin</button>
+                <button class="tool-btn delete-btn" onclick="deleteCurrentRecord()">🗑️ Move to Bin</button>
                 
                 <div class="status-control">
-                    <label for="caseStatusDropdown">Audit Status: </label>
-                    <select id="caseStatusDropdown" onchange="changeCaseStatus(this.value)">
+                    <label for="recordStatusDropdown">Audit Status: </label>
+                    <select id="recordStatusDropdown" onchange="changeRecordStatus(this.value)">
                         <option value="Pending">Pending Review</option>
                         <option value="Approved">Approved</option>
                         <option value="Rejected">Rejected / Needs Revision</option>
@@ -119,7 +120,7 @@
                     <div class="form-group"><label>Transaction Type</label><input type="text" id="f_transType"></div>
                     <div class="form-group"><label>SO Number</label><input type="text" id="f_soNum"></div>
                     <div class="form-group"><label>SO Date</label><input type="date" id="f_soDate"></div>
-                    <div class="form-group"><label>Project Description</label><input type="text" id="f_project" placeholder="(Acts as Case Name)"></div>
+                    <div class="form-group"><label>Project Description</label><input type="text" id="f_project" placeholder="(Acts as Record Name)"></div>
                     <div class="form-group"><label>Inclusive Dates</label><input type="text" id="f_incDates"></div>
                     <div class="form-group"><label>Amount Granted</label><input type="text" id="f_amtGranted"></div>
                     <div class="form-group"><label>Amount</label><input type="text" id="f_amtLiq"></div>
@@ -127,7 +128,35 @@
                     <div class="form-group full-width"><label>Date Assign</label><input type="date" id="f_dateAssign"></div>
                 </div>
 
-                <button type="submit" class="submit-btn" style="margin-top: 20px;">Submit Case & Generate Template</button>
+                <button type="submit" class="submit-btn" style="margin-top: 20px;">Submit Record & Generate Template</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="addRowModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; z-index: 1050;">
+            <span class="close-btn" onclick="closeAddRowModal()">&times;</span>
+            <h2>Append Data Row</h2>
+            <p class="helper-text">Fill out the details below to add a new line item directly below the last existing record in the spreadsheet.</p>
+            
+            <form id="addRowForm" onsubmit="submitNewRow(event)">
+                <div class="form-grid">
+                    <div class="form-group"><label>No.</label><input type="text" id="r_no"></div>
+                    <div class="form-group"><label>Fund</label><input type="text" id="r_fund"></div>
+                    <div class="form-group"><label>Check Date</label><input type="date" id="r_checkDate"></div>
+                    <div class="form-group"><label>Accountable Officer</label><input type="text" id="r_officer"></div>
+                    <div class="form-group"><label>Transaction Type</label><input type="text" id="r_transType"></div>
+                    <div class="form-group"><label>SO Number</label><input type="text" id="r_soNum"></div>
+                    <div class="form-group"><label>SO Date</label><input type="date" id="r_soDate"></div>
+                    <div class="form-group"><label>Project Description</label><input type="text" id="r_project"></div>
+                    <div class="form-group"><label>Inclusive Dates</label><input type="text" id="r_incDates"></div>
+                    <div class="form-group"><label>Amount Granted</label><input type="text" id="r_amtGranted"></div>
+                    <div class="form-group"><label>Amount</label><input type="text" id="r_amtLiq"></div>
+                    <div class="form-group"><label>Auditor</label><input type="text" id="r_auditor"></div>
+                    <div class="form-group full-width"><label>Date Assign</label><input type="date" id="r_dateAssign"></div>
+                </div>
+
+                <button type="submit" class="submit-btn" style="margin-top: 20px; background-color: #f39c12;">➕ Insert Data Row</button>
             </form>
         </div>
     </div>

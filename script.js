@@ -1,7 +1,7 @@
 // --- STATE MANAGEMENT ---
 let currentTab = 'Reimbursement'; 
 let currentYear = 'All'; 
-let currentOpenCaseId = null;     
+let currentOpenRecordId = null;     
 let currentSpreadsheet = null; 
 let isFullScreen = false;
 let isMinimized = false;
@@ -11,9 +11,9 @@ let mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
 
 // 30-Day Auto Purge for Recycle Bin
 const now = new Date();
-mockDatabase = mockDatabase.filter(caseData => {
-    if (caseData.deleted && caseData.deletedAt) {
-        const diffDays = Math.ceil(Math.abs(now - new Date(caseData.deletedAt)) / (1000 * 60 * 60 * 24)); 
+mockDatabase = mockDatabase.filter(recordData => {
+    if (recordData.deleted && recordData.deletedAt) {
+        const diffDays = Math.ceil(Math.abs(now - new Date(recordData.deletedAt)) / (1000 * 60 * 60 * 24)); 
         if (diffDays > 30) return false;
     }
     return true;
@@ -24,10 +24,10 @@ function saveToMemory() { localStorage.setItem('pupDatabase', JSON.stringify(moc
 // Ensure HTML is loaded before running
 document.addEventListener('DOMContentLoaded', () => { 
     renderSidebar(); 
-    searchCases(); 
+    searchRecords(); 
     
     // Setup enter-key search
-    document.getElementById('searchInput').addEventListener('keyup', searchCases);
+    document.getElementById('searchInput').addEventListener('keyup', searchRecords);
 });
 
 // --- BACKUP & RESTORE ---
@@ -46,7 +46,7 @@ function restoreDatabase(event) {
     reader.onload = function(e) {
         try {
             const importedData = JSON.parse(e.target.result);
-            if (Array.isArray(importedData)) { mockDatabase = importedData; saveToMemory(); renderSidebar(); searchCases(); alert("Database restored successfully!"); }
+            if (Array.isArray(importedData)) { mockDatabase = importedData; saveToMemory(); renderSidebar(); searchRecords(); alert("Database restored successfully!"); }
         } catch (error) { alert("Error reading file."); }
         event.target.value = ""; 
     };
@@ -59,8 +59,8 @@ function renderSidebar() {
     nav.innerHTML = ""; 
 
     ["Reimbursement", "Liquidation"].forEach(type => {
-        const cases = mockDatabase.filter(c => c.type === type && !c.deleted);
-        const years = [...new Set(cases.map(c => c.date ? c.date.split('-')[0] : 'Unknown'))].sort().reverse();
+        const records = mockDatabase.filter(c => c.type === type && !c.deleted);
+        const years = [...new Set(records.map(c => c.date ? c.date.split('-')[0] : 'Unknown'))].sort().reverse();
 
         const header = document.createElement('li');
         header.className = 'sidebar-category';
@@ -69,9 +69,9 @@ function renderSidebar() {
         nav.appendChild(header);
 
         if (expandedSidebar[type]) {
-            nav.appendChild(createNavBtn(type, 'All', cases.length));
+            nav.appendChild(createNavBtn(type, 'All', records.length));
             years.forEach(year => {
-                const count = cases.filter(c => c.date && c.date.startsWith(year)).length;
+                const count = records.filter(c => c.date && c.date.startsWith(year)).length;
                 nav.appendChild(createNavBtn(type, year, count));
             });
         }
@@ -82,7 +82,7 @@ function renderSidebar() {
     binHeader.className = `sidebar-category ${currentTab === 'Bin' ? 'bin-active' : ''}`;
     binHeader.style.marginTop = '25px';
     binHeader.innerHTML = `<span>🗑️ RECYCLE BIN</span> <span class="badge" style="background: white; color: #c0392b;">${binCount}</span>`;
-    binHeader.onclick = () => { currentTab = 'Bin'; currentYear = 'All'; document.getElementById('pageTitle').innerText = `Recycle Bin`; document.getElementById('pageSubtitle').innerText = `Deleted cases are permanently removed after 30 days`; updateTopButtons(); renderSidebar(); searchCases(); };
+    binHeader.onclick = () => { currentTab = 'Bin'; currentYear = 'All'; document.getElementById('pageTitle').innerText = `Recycle Bin`; document.getElementById('pageSubtitle').innerText = `Deleted records are permanently removed after 30 days`; updateTopButtons(); renderSidebar(); searchRecords(); };
     nav.appendChild(binHeader);
 }
 
@@ -90,7 +90,7 @@ function createNavBtn(type, year, count) {
     const li = document.createElement('li');
     li.className = `nav-item ${currentTab === type && currentYear === year ? 'active' : ''}`;
     li.innerHTML = `<span>${year === 'All' ? 'All Years' : year}</span> <span class="badge">${count}</span>`;
-    li.onclick = () => { currentTab = type; currentYear = year; document.getElementById('pageTitle').innerText = `${type}s - ${year === 'All' ? 'All Years' : year}`; document.getElementById('pageSubtitle').innerText = `Search and review submitted cases`; updateTopButtons(); renderSidebar(); searchCases(); };
+    li.onclick = () => { currentTab = type; currentYear = year; document.getElementById('pageTitle').innerText = `${type}s - ${year === 'All' ? 'All Years' : year}`; document.getElementById('pageSubtitle').innerText = `Search and review submitted records`; updateTopButtons(); renderSidebar(); searchRecords(); };
     return li;
 }
 
@@ -107,7 +107,7 @@ function updateDashboard(results) {
 }
 
 // --- SEARCH & RESULTS ---
-function searchCases() {
+function searchRecords() {
     const query = document.getElementById('searchInput').value.toLowerCase();
     const dateQuery = document.getElementById('dateInput').value;
     const container = document.getElementById('resultsContainer');
@@ -126,7 +126,7 @@ function renderResults(data) {
     const container = document.getElementById('resultsContainer');
     container.innerHTML = ""; 
     if (data.length === 0) {
-        container.innerHTML = `<p class='placeholder-text'>${currentTab === 'Bin' ? "The Recycle Bin is empty." : "No cases found matching your search criteria."}</p>`;
+        container.innerHTML = `<p class='placeholder-text'>${currentTab === 'Bin' ? "The Recycle Bin is empty." : "No records found matching your search criteria."}</p>`;
         return;
     }
 
@@ -142,7 +142,7 @@ function renderResults(data) {
                 <span class="date">Deleted on: ${new Date(item.deletedAt).toLocaleDateString()}</span>
                 <p class="summary" style="color: #aaa;">${item.summary}</p>
                 <div class="bin-actions">
-                    <button class="bin-btn restore-btn" onclick="restoreCase(${item.id}, event)">↺ Restore</button>
+                    <button class="bin-btn restore-btn" onclick="restoreRecord(${item.id}, event)">↺ Restore</button>
                     <button class="bin-btn perm-delete-btn" onclick="permanentlyDelete(${item.id}, event)">❌ Delete Forever</button>
                 </div>
             `;
@@ -163,7 +163,11 @@ function renderResults(data) {
 // --- SUBMIT NEW RECORD LOGIC ---
 function openAddModal() { document.getElementById('addModal').style.display = 'block'; }
 function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
-window.onclick = function(event) { if (event.target == document.getElementById('addModal')) closeAddModal(); }
+
+window.onclick = function(event) { 
+    if (event.target == document.getElementById('addModal')) closeAddModal(); 
+    if (event.target == document.getElementById('addRowModal')) closeAddRowModal(); 
+}
 
 function submitNewRecord(event) {
     event.preventDefault(); 
@@ -172,25 +176,22 @@ function submitNewRecord(event) {
         const getValue = (id) => document.getElementById(id) ? document.getElementById(id).value : "";
 
         let dynamicName = getValue('f_project');
-        if (!dynamicName) dynamicName = "Untitled Audit Case";
+        if (!dynamicName) dynamicName = "Untitled Record";
         
         let dynamicDate = getValue('f_dateAssign') || getValue('f_checkDate');
         if (!dynamicDate) dynamicDate = new Date().toISOString().split('T')[0];
 
-        const summary = `Audit case generated for ${dynamicName}.`;
+        const summary = `Audit record generated for ${dynamicName}.`;
         const fileInput = document.getElementById('newFile');
 
-        // --- NEW INDEPENDENT SERIAL NUMBER LOGIC ---
         const yearStr = dynamicDate.split('-')[0] || new Date().getFullYear();
         const typeIndicator = currentTab === 'Reimbursement' ? 'R' : 'L';
         
-        // Find highest serial number specifically for THIS type and THIS year
-        const similarCases = mockDatabase.filter(c => c.type === currentTab && c.date && c.date.startsWith(yearStr));
+        const similarRecords = mockDatabase.filter(c => c.type === currentTab && c.date && c.date.startsWith(yearStr));
         let maxSequence = 0;
         
-        similarCases.forEach(c => {
+        similarRecords.forEach(c => {
             if (c.serial) {
-                // Serial format is "AUD-R: 2026 - 0001". Split by " - " to get the sequence.
                 const parts = c.serial.split(' - ');
                 if (parts.length === 2) {
                     const num = parseInt(parts[1], 10);
@@ -203,11 +204,10 @@ function submitNewRecord(event) {
         
         const nextSequenceNumber = maxSequence + 1;
         const generatedSerial = `AUD-${typeIndicator}: ${yearStr} - ${String(nextSequenceNumber).padStart(4, '0')}`;
-        // ------------------------------------------
 
-        const newCase = { 
-            id: Date.now(), // Unique internal ID
-            serial: generatedSerial, // Beautiful visible Serial Number
+        const newRecord = { 
+            id: Date.now(), 
+            serial: generatedSerial, 
             type: currentTab, 
             name: dynamicName, 
             date: dynamicDate, 
@@ -225,8 +225,8 @@ function submitNewRecord(event) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
-                newCase.excelData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
-                mockDatabase.push(newCase); 
+                newRecord.excelData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
+                mockDatabase.push(newRecord); 
                 finishSubmission();
             };
             reader.readAsArrayBuffer(fileInput.files[0]);
@@ -243,7 +243,7 @@ function submitNewRecord(event) {
             
             const headers = ["No.", "Fund", "Check Date", "Accountable Officer", "Transaction Type", "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Amount Granted", "Amount", "Auditor", "Date Assign", "Date Audited", "Audit Result", "Date Forwarded to the Chief", "Reviewed by / Comments", "Reviewed by / Date", "Remarks"];
             
-            newCase.excelData = [
+            newRecord.excelData = [
                 [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`, ...Array(18).fill("")],
                 [`For the Fiscal Year ${yearStr}`, ...Array(18).fill("")],
                 [`As of ${formattedDate}`, ...Array(18).fill("")],
@@ -251,16 +251,16 @@ function submitNewRecord(event) {
                 rowData
             ];
             
-            newCase.mergeCells = { A1: [19, 1], A2: [19, 1], A3: [19, 1] };
-            newCase.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
+            newRecord.mergeCells = { A1: [19, 1], A2: [19, 1], A3: [19, 1] };
+            newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
             const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
-            columns.forEach(col => newCase.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
+            columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
             
-            mockDatabase.push(newCase); 
+            mockDatabase.push(newRecord); 
             finishSubmission();
         }
     } catch (err) {
-        alert("There was an error submitting the case. Please check your form. Error: " + err.message);
+        alert("There was an error submitting the record. Please check your form. Error: " + err.message);
     }
 }
 
@@ -272,39 +272,96 @@ function finishSubmission() {
     document.getElementById('dateInput').value = "";
     updateTopButtons(); 
     renderSidebar(); 
-    searchCases(); 
+    searchRecords(); 
+}
+
+// --- APPEND NEW ROW LOGIC ---
+function openAddRowModal() {
+    document.getElementById('addRowModal').style.display = 'block';
+}
+
+function closeAddRowModal() {
+    document.getElementById('addRowModal').style.display = 'none';
+    document.getElementById('addRowForm').reset();
+}
+
+function submitNewRow(event) {
+    event.preventDefault();
+    try {
+        const getValue = (id) => document.getElementById(id) ? document.getElementById(id).value : "";
+        
+        const rowData = [
+            getValue('r_no'), getValue('r_fund'), getValue('r_checkDate'), getValue('r_officer'),
+            getValue('r_transType'), getValue('r_soNum'), getValue('r_soDate'), getValue('r_project'),
+            getValue('r_incDates'), getValue('r_amtGranted'), getValue('r_amtLiq'), getValue('r_auditor'),
+            getValue('r_dateAssign'), 
+            "", "", "", "", "", ""
+        ];
+
+        const record = mockDatabase.find(item => item.id === currentOpenRecordId);
+        if (record && currentSpreadsheet) {
+            let currentData = currentSpreadsheet.getData();
+            record.style = currentSpreadsheet.getStyle();
+            
+            let insertIndex = currentData.length;
+            for (let i = currentData.length - 1; i >= 3; i--) {
+                const isEmpty = currentData[i].every(cell => !cell || String(cell).trim() === "");
+                if (!isEmpty) {
+                    insertIndex = i + 1;
+                    break;
+                }
+            }
+            
+            if (insertIndex < currentData.length) {
+                currentData[insertIndex] = rowData;
+            } else {
+                currentData.push(rowData);
+            }
+            
+            record.excelData = currentData;
+            
+            if (!record.logs) record.logs = [];
+            record.logs.push({ date: new Date().toLocaleString(), message: `System: Inserted new data row via form.` });
+            
+            saveToMemory();
+            closeAddRowModal();
+            openModal(currentOpenRecordId); 
+        }
+    } catch (err) {
+        alert("There was an error appending the row: " + err.message);
+    }
 }
 
 // --- MODAL & SPREADSHEET LOGIC ---
 function openModal(id) {
-    const caseData = mockDatabase.find(item => item.id === id);
-    if (!caseData) return;
+    const record = mockDatabase.find(item => item.id === id);
+    if (!record) return;
     restoreModal();
     if (isFullScreen) toggleFullScreen(); 
 
-    currentOpenCaseId = id;
+    currentOpenRecordId = id;
     document.getElementById('fileModal').style.display = 'block';
-    document.getElementById('modalTitle').innerText = `[${caseData.serial}] Audit Worksheet: ${caseData.name}`;
-    document.getElementById('caseStatusDropdown').value = caseData.status || "Pending";
-    renderLogs(caseData.logs);
+    document.getElementById('modalTitle').innerText = `[${record.serial}] Audit Worksheet: ${record.name}`;
+    document.getElementById('recordStatusDropdown').value = record.status || "Pending";
+    renderLogs(record.logs);
     
     const container = document.getElementById('excelViewer');
     container.innerHTML = "";
     if (currentSpreadsheet) currentSpreadsheet.destroy();
 
-    if (!caseData.excelData || caseData.excelData.length === 0) {
+    if (!record.excelData || record.excelData.length === 0) {
         const title = `SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`;
-        const formattedDate = caseData.date ? new Date(caseData.date).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }) : new Date().toLocaleDateString();
+        const formattedDate = record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }) : new Date().toLocaleDateString();
         const headers = ["No.", "Fund", "Check Date", "Accountable Officer", "Transaction Type", "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Amount Granted", "Amount", "Auditor", "Date Assign", "Date Audited", "Audit Result", "Date Forwarded to the Chief", "Reviewed by / Comments", "Reviewed by / Date", "Remarks"];
-        caseData.excelData = [[title, ...Array(18).fill("")], [`For the Fiscal Year ${new Date().getFullYear()}`, ...Array(18).fill("")], [`As of ${formattedDate}`, ...Array(18).fill("")], headers, Array(19).fill("")];
-        caseData.mergeCells = { A1: [19, 1], A2: [19, 1], A3: [19, 1] };
-        caseData.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
+        record.excelData = [[title, ...Array(18).fill("")], [`For the Fiscal Year ${new Date().getFullYear()}`, ...Array(18).fill("")], [`As of ${formattedDate}`, ...Array(18).fill("")], headers, Array(19).fill("")];
+        record.mergeCells = { A1: [19, 1], A2: [19, 1], A3: [19, 1] };
+        record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
         const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
-        columns.forEach(col => caseData.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
+        columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
     }
 
     currentSpreadsheet = jspreadsheet(container, {
-        data: caseData.excelData,
+        data: record.excelData,
         minDimensions: [19, 20], 
         defaultColWidth: 140, 
         tableOverflow: true, 
@@ -314,36 +371,36 @@ function openModal(id) {
         rowDrag: true, 
         allowInsertRow: true, 
         allowInsertColumn: true,
-        style: caseData.style || {}, 
-        mergeCells: caseData.mergeCells || {}, 
+        style: record.style || {}, 
+        mergeCells: record.mergeCells || {}, 
         responsive: true
     });
 }
 
 function closeModal() {
-    if (currentSpreadsheet && currentOpenCaseId) {
-        const caseData = mockDatabase.find(item => item.id === currentOpenCaseId);
-        if (caseData) {
-            caseData.excelData = currentSpreadsheet.getData();
-            caseData.headers = currentSpreadsheet.getHeaders().split(',');
-            caseData.style = currentSpreadsheet.getStyle();
-            caseData.mergeCells = currentSpreadsheet.getConfig().mergeCells || {};
+    if (currentSpreadsheet && currentOpenRecordId) {
+        const record = mockDatabase.find(item => item.id === currentOpenRecordId);
+        if (record) {
+            record.excelData = currentSpreadsheet.getData();
+            record.headers = currentSpreadsheet.getHeaders().split(',');
+            record.style = currentSpreadsheet.getStyle();
+            record.mergeCells = currentSpreadsheet.getConfig().mergeCells || {};
         }
     }
     saveToMemory();
     document.getElementById('fileModal').style.display = 'none';
-    currentOpenCaseId = null;
+    currentOpenRecordId = null;
 }
 
-function changeCaseStatus(newStatus) {
-    const caseData = mockDatabase.find(item => item.id === currentOpenCaseId);
-    if (caseData && caseData.status !== newStatus) {
-        caseData.status = newStatus;
-        if (!caseData.logs) caseData.logs = [];
-        caseData.logs.push({ date: new Date().toLocaleString(), message: `System: Status changed to ${newStatus}` });
+function changeRecordStatus(newStatus) {
+    const record = mockDatabase.find(item => item.id === currentOpenRecordId);
+    if (record && record.status !== newStatus) {
+        record.status = newStatus;
+        if (!record.logs) record.logs = [];
+        record.logs.push({ date: new Date().toLocaleString(), message: `System: Status changed to ${newStatus}` });
         saveToMemory(); 
-        searchCases(); 
-        renderLogs(caseData.logs); 
+        searchRecords(); 
+        renderLogs(record.logs); 
     }
 }
 
@@ -362,45 +419,45 @@ function renderLogs(logs) {
 }
 
 function addAuditLog() {
-    if (!currentOpenCaseId) return;
+    if (!currentOpenRecordId) return;
     const input = document.getElementById('newLogInput');
     if (!input.value.trim()) return;
-    const caseData = mockDatabase.find(item => item.id === currentOpenCaseId);
-    if (caseData) {
-        if (!caseData.logs) caseData.logs = [];
-        caseData.logs.push({ date: new Date().toLocaleString(), message: input.value.trim() });
-        saveToMemory(); renderLogs(caseData.logs); input.value = ""; 
+    const record = mockDatabase.find(item => item.id === currentOpenRecordId);
+    if (record) {
+        if (!record.logs) record.logs = [];
+        record.logs.push({ date: new Date().toLocaleString(), message: input.value.trim() });
+        saveToMemory(); renderLogs(record.logs); input.value = ""; 
     }
 }
 
 // --- DELETE & RECYCLE BIN ---
-function deleteCurrentCase() {
-    if(confirm("Move this case to the Recycle Bin? It will be permanently deleted after 30 days.")) {
-        const caseData = mockDatabase.find(c => c.id === currentOpenCaseId);
-        caseData.deleted = true; caseData.deletedAt = new Date().toISOString();
-        saveToMemory(); closeModal(); renderSidebar(); searchCases();
+function deleteCurrentRecord() {
+    if(confirm("Move this record to the Recycle Bin? It will be permanently deleted after 30 days.")) {
+        const record = mockDatabase.find(c => c.id === currentOpenRecordId);
+        record.deleted = true; record.deletedAt = new Date().toISOString();
+        saveToMemory(); closeModal(); renderSidebar(); searchRecords();
     }
 }
 
-function restoreCase(id, event) {
+function restoreRecord(id, event) {
     event.stopPropagation();
-    const caseData = mockDatabase.find(c => c.id === id);
-    caseData.deleted = false; caseData.deletedAt = null;
-    saveToMemory(); renderSidebar(); searchCases();
+    const record = mockDatabase.find(c => c.id === id);
+    record.deleted = false; record.deletedAt = null;
+    saveToMemory(); renderSidebar(); searchRecords();
 }
 
 function permanentlyDelete(id, event) {
     event.stopPropagation();
-    if(confirm("Are you sure you want to PERMANENTLY delete this case? This cannot be undone.")) {
+    if(confirm("Are you sure you want to PERMANENTLY delete this record? This cannot be undone.")) {
         mockDatabase = mockDatabase.filter(c => c.id !== id);
-        saveToMemory(); renderSidebar(); searchCases();
+        saveToMemory(); renderSidebar(); searchRecords();
     }
 }
 
 function emptyBin() {
     if(confirm("Are you sure you want to permanently delete ALL items in the Recycle Bin?")) {
         mockDatabase = mockDatabase.filter(c => !c.deleted);
-        saveToMemory(); renderSidebar(); searchCases();
+        saveToMemory(); renderSidebar(); searchRecords();
     }
 }
 
@@ -412,9 +469,9 @@ function importExcel(event) {
     reader.onload = function(e) {
         const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
-        if (currentOpenCaseId) {
-            const caseData = mockDatabase.find(item => item.id === currentOpenCaseId);
-            caseData.excelData = jsonData; caseData.headers = null; caseData.style = null; caseData.mergeCells = null; saveToMemory();
+        if (currentOpenRecordId) {
+            const record = mockDatabase.find(item => item.id === currentOpenRecordId);
+            record.excelData = jsonData; record.headers = null; record.style = null; record.mergeCells = null; saveToMemory();
         }
         const container = document.getElementById('excelViewer');
         container.innerHTML = ""; if (currentSpreadsheet) currentSpreadsheet.destroy();
@@ -424,15 +481,15 @@ function importExcel(event) {
 }
 
 function exportExcel() {
-    if (!currentOpenCaseId || !currentSpreadsheet) return;
+    if (!currentOpenRecordId || !currentSpreadsheet) return;
     
-    const caseData = mockDatabase.find(item => item.id === currentOpenCaseId);
+    const record = mockDatabase.find(item => item.id === currentOpenRecordId);
     const data = currentSpreadsheet.getData();
     const worksheet = XLSX.utils.aoa_to_sheet(data);
     
-    if (caseData.mergeCells) {
+    if (record.mergeCells) {
         worksheet['!merges'] = [];
-        for (const [cell, span] of Object.entries(caseData.mergeCells)) {
+        for (const [cell, span] of Object.entries(record.mergeCells)) {
             const decoded = XLSX.utils.decode_cell(cell); 
             worksheet['!merges'].push({
                 s: { r: decoded.r, c: decoded.c },
@@ -443,36 +500,36 @@ function exportExcel() {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "AuditData");
-    XLSX.writeFile(workbook, `${caseData.serial}_Audit_Data.xlsx`);
+    XLSX.writeFile(workbook, `${record.serial}_Audit_Data.xlsx`);
 }
 
 function generatePDF() {
-    if (!currentOpenCaseId) return;
-    const caseData = mockDatabase.find(item => item.id === currentOpenCaseId);
-    let logsHTML = caseData.logs.map(log => `<p style="font-size: 13px; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px;"><strong style="color: #555;">${log.date}</strong><br>${log.message}</p>`).join('');
+    if (!currentOpenRecordId) return;
+    const record = mockDatabase.find(item => item.id === currentOpenRecordId);
+    let logsHTML = record.logs.map(log => `<p style="font-size: 13px; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px;"><strong style="color: #555;">${log.date}</strong><br>${log.message}</p>`).join('');
     if(!logsHTML) logsHTML = "<p style='font-style: italic; color: #777;'>No audit logs recorded.</p>";
-    const statusColor = caseData.status === 'Approved' ? '#059669' : caseData.status === 'Rejected' ? '#dc2626' : '#d97706';
+    const statusColor = record.status === 'Approved' ? '#059669' : record.status === 'Rejected' ? '#dc2626' : '#d97706';
 
     const element = document.createElement('div');
     element.style.padding = '50px'; element.style.fontFamily = 'Helvetica, Arial, sans-serif'; element.style.color = '#333';
     element.innerHTML = `
         <div style="text-align: center; border-bottom: 3px solid #800000; padding-bottom: 20px; margin-bottom: 30px;">
-            <h1 style="color: #800000; margin: 0; font-size: 32px;">PUP INTERNAL AUDIT</h1><h3 style="color: #555; margin: 5px 0 0 0; text-transform: uppercase;">Executive Case Summary</h3>
+            <h1 style="color: #800000; margin: 0; font-size: 32px;">PUP INTERNAL AUDIT</h1><h3 style="color: #555; margin: 5px 0 0 0; text-transform: uppercase;">Executive Record Summary</h3>
         </div>
         <table style="width: 100%; margin-bottom: 30px; border-collapse: collapse; font-size: 15px;">
-            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold; width: 180px;">Serial Number:</td><td style="padding: 12px; border: 1px solid #ccc; font-family: monospace;">${caseData.serial}</td></tr>
-            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold;">Case Title:</td><td style="padding: 12px; border: 1px solid #ccc; font-weight: bold;">${caseData.name}</td></tr>
-            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold;">Audit Type:</td><td style="padding: 12px; border: 1px solid #ccc;">${caseData.type}</td></tr>
-            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold;">Date Submitted:</td><td style="padding: 12px; border: 1px solid #ccc;">${caseData.date}</td></tr>
-            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold;">Status:</td><td style="padding: 12px; border: 1px solid #ccc; font-weight: bold; color: ${statusColor}; text-transform: uppercase;">${caseData.status}</td></tr>
+            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold; width: 180px;">Serial Number:</td><td style="padding: 12px; border: 1px solid #ccc; font-family: monospace;">${record.serial}</td></tr>
+            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold;">Record Title:</td><td style="padding: 12px; border: 1px solid #ccc; font-weight: bold;">${record.name}</td></tr>
+            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold;">Audit Type:</td><td style="padding: 12px; border: 1px solid #ccc;">${record.type}</td></tr>
+            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold;">Date Submitted:</td><td style="padding: 12px; border: 1px solid #ccc;">${record.date}</td></tr>
+            <tr><td style="padding: 12px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold;">Status:</td><td style="padding: 12px; border: 1px solid #ccc; font-weight: bold; color: ${statusColor}; text-transform: uppercase;">${record.status}</td></tr>
         </table>
         <h3 style="color: #800000; border-bottom: 1px solid #ccc; padding-bottom: 8px;">Executive Overview</h3>
-        <p style="background: #f4f7f6; padding: 20px; border-left: 5px solid #800000; line-height: 1.6; white-space: pre-wrap;">${caseData.summary}</p>
+        <p style="background: #f4f7f6; padding: 20px; border-left: 5px solid #800000; line-height: 1.6; white-space: pre-wrap;">${record.summary}</p>
         <h3 style="color: #800000; border-bottom: 1px solid #ccc; padding-bottom: 8px;">Audit Trail & Remarks</h3>${logsHTML}
     `;
 
     const btn = document.getElementById('pdfBtn'); const originalText = btn.innerHTML; btn.innerHTML = "⏳ Generating..."; btn.style.opacity = "0.7";
-    html2pdf().set({ margin: 0, filename: `${caseData.serial}_Summary.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).from(element).save().then(() => { btn.innerHTML = originalText; btn.style.opacity = "1"; });
+    html2pdf().set({ margin: 0, filename: `${record.serial}_Summary.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).from(element).save().then(() => { btn.innerHTML = originalText; btn.style.opacity = "1"; });
 }
 
 // --- WINDOW CONTROLS ---

@@ -100,6 +100,8 @@ header p { color: #7f8c8d; margin-top: 0; font-size: 1.1em; }
 .save-btn:hover { background-color: #a30000; }
 .delete-btn { background-color: #e74c3c; color: white; margin-right: auto;}
 .delete-btn:hover { background-color: #c0392b; }
+.add-row-btn { background-color: #f39c12; color: white; }
+.add-row-btn:hover { background-color: #d68910; }
 
 .status-control { margin-left: auto; display: flex; align-items: center; gap: 10px; background: #f8f9fa; padding: 5px 15px; border-radius: 6px; border: 1px solid #ddd; }
 .status-control label { font-weight: bold; color: #555; font-size: 0.9em;}
