@@ -1,3 +1,81 @@
+// ============ API INTEGRATION MODULE ============
+// Enhanced to work with backend API while supporting frontend functionality
+
+// Override initial data loading to use API if available
+async function loadRecordsFromAPI() {
+    if (!currentUser || !currentToken) return null;
+    
+    try {
+        const response = await apiCall('/audit/records');
+        if (!response) return null;
+        
+        if (response.ok) {
+            const records = await response.json();
+            // Transform API records to match mockDatabase format
+            return records.map(record => ({
+                id: record.id,
+                serial: record.serial_number,
+                type: record.record_type,
+                name: record.record_name,
+                date: record.created_at ? record.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+                summary: `Audit record for ${record.record_name}`,
+                status: record.status,
+                logs: [],
+                excelData: null,
+                style: {},
+                mergeCells: null,
+                deleted: record.is_deleted,
+                deletedAt: record.deleted_at,
+                api_id: record.id
+            }));
+        }
+    } catch (error) {
+        console.error('Failed to load records from API:', error);
+        return null;
+    }
+}
+
+// Override the initial DOMContentLoaded logic
+const originalDOMContentLoaded = document.addEventListener.bind(document);
+document.addEventListener = function(event, handler) {
+    if (event === 'DOMContentLoaded') {
+        return originalDOMContentLoaded(event, async () => {
+            // Check if we have auth token
+            if (currentToken && currentUser) {
+                // Load from API first
+                const apiRecords = await loadRecordsFromAPI();
+                if (apiRecords) {
+                    mockDatabase = apiRecords;
+                } else {
+                    // Fallback to localStorage
+                    mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
+                }
+            } else {
+                mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
+            }
+            
+            // Apply 30-day auto purge
+            const now = new Date();
+            mockDatabase = mockDatabase.filter(recordData => {
+                if (recordData.deleted && recordData.deletedAt) {
+                    const diffDays = Math.ceil(Math.abs(now - new Date(recordData.deletedAt)) / (1000 * 60 * 60 * 24));
+                    if (diffDays > 30) return false;
+                }
+                return true;
+            });
+
+            renderSidebar();
+            searchRecords();
+
+            document.getElementById('searchInput').addEventListener('keyup', searchRecords);
+            
+            // Call original handler
+            handler();
+        });
+    }
+    return originalDOMContentLoaded(event, handler);
+};
+
 // --- STATE MANAGEMENT ---
 let currentTab = 'Reimbursement'; 
 let currentYear = 'All'; 
@@ -19,7 +97,63 @@ mockDatabase = mockDatabase.filter(recordData => {
     return true;
 });
 
-function saveToMemory() { localStorage.setItem('pupDatabase', JSON.stringify(mockDatabase)); }
+function saveToMemory() { 
+    localStorage.setItem('pupDatabase', JSON.stringify(mockDatabase));
+    
+    // Also sync to backend if user is authenticated
+    if (currentUser && currentToken) {
+        syncRecordsToAPI();
+    }
+}
+
+// Sync records to API
+async function syncRecordsToAPI() {
+    // This is optional - records can also be managed through individual API calls
+    // For now, we'll handle this at the individual operation level
+}
+
+// Enhanced delete function with API call
+async function deleteCurrentRecord() {
+    if (!currentOpenRecordId) return;
+    
+    if(confirm("Move this record to the Recycle Bin? It will be permanently deleted after 30 days.")) {
+        try {
+            const record = mockDatabase.find(c => c.id === currentOpenRecordId);
+            
+            // If record has API ID, call API delete
+            if (record && record.api_id && currentToken) {
+                const response = await apiCall(`/audit/records/${record.api_id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    alert('Failed to delete record on server');
+                    return;
+                }
+            }
+            
+            // Update local database
+            record.deleted = true;
+            record.deletedAt = new Date().toISOString();
+            saveToMemory();
+            closeModal();
+            renderSidebar();
+            searchRecords();
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('Error deleting record');
+        }
+    }
+}
+
+// Check if delete button should be shown
+function canDeleteRecords() {
+    if (!currentUser) return false;
+    // Audit Supervisors can always delete
+    if (currentUser.role === 'Audit Supervisor') return true;
+    // Staff Auditors cannot delete (permission configurable by supervisor)
+    return false;
+}
 
 // Ensure HTML is loaded before running
 document.addEventListener('DOMContentLoaded', () => { 
@@ -52,6 +186,7 @@ function restoreDatabase(event) {
     };
     reader.readAsText(file);
 }
+
 
 // --- SIDEBAR & DASHBOARD ---
 function renderSidebar() {
@@ -343,6 +478,17 @@ function openModal(id) {
     document.getElementById('fileModal').style.display = 'block';
     document.getElementById('modalTitle').innerText = `[${record.serial}] Audit Worksheet: ${record.name}`;
     document.getElementById('recordStatusDropdown').value = record.status || "Pending";
+    
+    // Update delete button visibility based on permissions
+    const deleteBtn = document.querySelector('.delete-btn');
+    if (deleteBtn) {
+        if (canDeleteRecords()) {
+            deleteBtn.style.display = 'inline-block';
+        } else {
+            deleteBtn.style.display = 'none';
+        }
+    }
+    
     renderLogs(record.logs);
     
     const container = document.getElementById('excelViewer');
@@ -432,10 +578,43 @@ function addAuditLog() {
 
 // --- DELETE & RECYCLE BIN ---
 function deleteCurrentRecord() {
+    if (!currentOpenRecordId) return;
+    
     if(confirm("Move this record to the Recycle Bin? It will be permanently deleted after 30 days.")) {
-        const record = mockDatabase.find(c => c.id === currentOpenRecordId);
-        record.deleted = true; record.deletedAt = new Date().toISOString();
-        saveToMemory(); closeModal(); renderSidebar(); searchRecords();
+        try {
+            const record = mockDatabase.find(c => c.id === currentOpenRecordId);
+            
+            // If record has API ID, call API delete
+            if (record && record.api_id && currentToken) {
+                fetch(`${API_BASE_URL}/audit/records/${record.api_id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                }).then(res => {
+                    if (!res.ok) throw new Error('Server delete failed');
+                    // Update local database
+                    record.deleted = true;
+                    record.deletedAt = new Date().toISOString();
+                    saveToMemory();
+                    closeModal();
+                    renderSidebar();
+                    searchRecords();
+                }).catch(err => {
+                    console.error('Delete error:', err);
+                    alert('Error deleting record');
+                });
+            } else {
+                // Fallback to local deletion
+                record.deleted = true;
+                record.deletedAt = new Date().toISOString();
+                saveToMemory();
+                closeModal();
+                renderSidebar();
+                searchRecords();
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('Error deleting record');
+        }
     }
 }
 

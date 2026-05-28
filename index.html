@@ -14,23 +14,87 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsuites@4.3.2/dist/jsuites.min.css" type="text/css" />
 </head>
 <body>
-    <div class="layout">
+    <!-- AUTH SCREENS -->
+    <div id="authContainer" class="auth-container" style="display: none;">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="auth-screen active">
+            <div class="auth-box">
+                <h1 class="auth-logo">PUP Audit</h1>
+                <h2>Login</h2>
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="auth-form-group">
+                        <label>Username</label>
+                        <input type="text" id="loginUsername" placeholder="Enter username" required>
+                    </div>
+                    <div class="auth-form-group">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" placeholder="Enter password" required>
+                    </div>
+                    <button type="submit" class="auth-btn">Login</button>
+                    <p class="auth-switch">Don't have an account? <a href="#" onclick="switchToRegister(event)">Register</a></p>
+                </form>
+                <p id="loginError" class="auth-error"></p>
+            </div>
+        </div>
+
+        <!-- Registration Screen -->
+        <div id="registerScreen" class="auth-screen">
+            <div class="auth-box">
+                <h1 class="auth-logo">PUP Audit</h1>
+                <h2>Register</h2>
+                <form id="registerForm" onsubmit="handleRegister(event)">
+                    <div class="auth-form-group">
+                        <label>Username</label>
+                        <input type="text" id="registerUsername" placeholder="Choose username" required>
+                    </div>
+                    <div class="auth-form-group">
+                        <label>Email</label>
+                        <input type="email" id="registerEmail" placeholder="Enter email" required>
+                    </div>
+                    <div class="auth-form-group">
+                        <label>Password</label>
+                        <input type="password" id="registerPassword" placeholder="Enter password" required>
+                    </div>
+                    <div class="auth-form-group">
+                        <label>Confirm Password</label>
+                        <input type="password" id="confirmPassword" placeholder="Confirm password" required>
+                    </div>
+                    <button type="submit" class="auth-btn">Register</button>
+                    <p class="auth-switch">Already have an account? <a href="#" onclick="switchToLogin(event)">Login</a></p>
+                </form>
+                <p id="registerError" class="auth-error"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="appContainer" class="layout" style="display: none;">
         <aside class="sidebar">
             <h2 class="logo">PUP Audit</h2>
             <nav class="sidebar-nav-container">
                 <ul class="nav-links" id="sidebarNav"></ul>
             </nav>
             <div class="sidebar-utils">
+                <button id="permissionsBtn" class="util-btn" onclick="openPermissionsModal()" style="display: none;">🔐 Manage Permissions</button>
                 <button onclick="backupDatabase()" class="util-btn">📥 Backup Data</button>
                 <input type="file" id="restoreFile" accept=".json" style="display:none;" onchange="restoreDatabase(event)">
                 <button onclick="document.getElementById('restoreFile').click()" class="util-btn">📤 Restore Data</button>
+                <button onclick="logout()" class="util-btn logout-btn">🚪 Logout</button>
             </div>
         </aside>
 
         <main class="main-content">
             <header>
-                <h1 id="pageTitle">Reimbursements - All Years</h1>
-                <p id="pageSubtitle">Search and review submitted records</p>
+                <div class="header-left">
+                    <h1 id="pageTitle">Reimbursements - All Years</h1>
+                    <p id="pageSubtitle">Search and review submitted records</p>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span id="userRole" class="role-badge">Staff Auditor</span>
+                        <span id="userName">User</span>
+                    </div>
+                </div>
             </header>
             
             <div class="dashboard-row">
@@ -161,6 +225,49 @@
         </div>
     </div>
 
+    <!-- PERMISSIONS MANAGEMENT MODAL -->
+    <div id="permissionsModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px;">
+            <span class="close-btn" onclick="closePermissionsModal()">&times;</span>
+            <h2>Manage Staff Auditor Permissions</h2>
+            <p class="helper-text">As Audit Supervisor, you can control what actions Staff Auditors can perform. Changes apply to all new Staff Auditors and can be customized per user.</p>
+            
+            <div id="permissionsContainer" style="margin-top: 20px;"></div>
+            
+            <button onclick="savePermissions()" class="primary-btn" style="margin-top: 20px;">💾 Save Changes</button>
+        </div>
+    </div>
+
+    <!-- PASSWORD CHANGE MODAL -->
+    <div id="passwordModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close-btn" onclick="closePasswordModal()">&times;</span>
+            <h2>Change Password</h2>
+            <form id="passwordForm" onsubmit="handlePasswordChange(event)">
+                <div class="auth-form-group">
+                    <label>Current Password</label>
+                    <input type="password" id="currentPassword" placeholder="Enter current password" required>
+                </div>
+                <div class="auth-form-group">
+                    <label>New Password</label>
+                    <input type="password" id="newPassword" placeholder="Enter new password" required>
+                </div>
+                <div class="auth-form-group">
+                    <label>Confirm New Password</label>
+                    <input type="password" id="confirmNewPassword" placeholder="Confirm new password" required>
+                </div>
+                <button type="submit" class="auth-btn">Change Password</button>
+                <p id="passwordError" class="auth-error"></p>
+            </form>
+        </div>
+    </div>
+
+    </div>
+
+    <script src="auth.js"></script>
     <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', initializeAuth);
+    </script>
 </body>
 </html>
