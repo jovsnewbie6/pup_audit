@@ -3,6 +3,13 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const { Pool } = require('pg');
+const path = require('path'); // Add this near the top with your other requires
+
+app.use(express.static(__dirname));
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Load environment variables
 dotenv.config();
