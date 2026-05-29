@@ -255,6 +255,10 @@ header { display: flex; justify-content: space-between; align-items: flex-start;
     background-position: center;
     background-repeat: no-repeat;
     min-height: 100vh;
+    display: flex;
+    justify-content: flex-end; /* This pushes the login box to the right */
+    align-items: center;
+    padding-right: 10%; /* This gives it some space from the right edge */
 }
 
 .auth-box {
