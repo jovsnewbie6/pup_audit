@@ -12,16 +12,24 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 const initDB = async () => {
+    if (!pool || typeof pool.connect !== 'function') {
+        console.error('✗ Database pool not initialized');
+        setTimeout(() => initDB(), 100);
+        return;
+    }
+
     const client = await pool.connect();
     try {
-        await client.query('BEGIN');
-        
-        // Drop tables if they exist (in reverse order of creation due to foreign keys)
-        await client.query('DROP TABLE IF EXISTS audit_logs CASCADE');
-        await client.query('DROP TABLE IF EXISTS audit_records CASCADE');
-        await client.query('DROP TABLE IF EXISTS permissions CASCADE');
-        await client.query('DROP TABLE IF EXISTS users CASCADE');
-        
+        // Drop tables in correct order (dependencies first)
+        try { await client.query('DROP TABLE IF EXISTS audit_logs CASCADE;'); } catch (e) { }
+        try { await client.query('DROP TABLE IF EXISTS audit_records CASCADE;'); } catch (e) { }
+        try { await client.query('DROP TABLE IF EXISTS permissions CASCADE;'); } catch (e) { }
+        try { await client.query('DROP TABLE IF EXISTS users CASCADE;'); } catch (e) { }
+
+        // Give the drops time to complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Create users table
         await client.query(`
             CREATE TABLE users (
                 id SERIAL PRIMARY KEY,
@@ -33,6 +41,7 @@ const initDB = async () => {
             );
         `);
 
+        // Create audit_records table
         await client.query(`
             CREATE TABLE audit_records (
                 id SERIAL PRIMARY KEY,
@@ -48,6 +57,7 @@ const initDB = async () => {
             );
         `);
 
+        // Create audit_logs table
         await client.query(`
             CREATE TABLE audit_logs (
                 id SERIAL PRIMARY KEY,
@@ -61,6 +71,7 @@ const initDB = async () => {
             );
         `);
 
+        // Create permissions table
         await client.query(`
             CREATE TABLE permissions (
                 id SERIAL PRIMARY KEY,
@@ -71,6 +82,7 @@ const initDB = async () => {
             );
         `);
 
+        // Create default admin user
         const adminCheck = await client.query("SELECT * FROM users WHERE username = 'admin'");
         if (adminCheck.rows.length === 0) {
             const salt = await bcrypt.genSalt(10);
@@ -79,10 +91,9 @@ const initDB = async () => {
                 "INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)",
                 ['admin', hash, 'Audit Supervisor']
             );
-            console.log('Default Audit Supervisor (admin) created.');
+            console.log('✓ Default Audit Supervisor (admin) created.');
         }
 
-        await client.query('COMMIT');
         console.log('✓ Database initialized successfully.');
         
         // Register routes after database is ready
@@ -103,12 +114,18 @@ const initDB = async () => {
             console.log(`✓ Server running on port ${PORT}`);
         });
     } catch (err) {
-        await client.query('ROLLBACK');
         console.error('✗ Database initialization failed:', err.message);
-        process.exit(1);
     } finally {
         client.release();
     }
 };
 
-initDB();
+// Test database connection first
+pool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error('✗ Database connection failed:', err.message);
+    } else {
+        console.log('✓ Database connected:', res.rows[0]);
+        initDB();
+    }
+});
