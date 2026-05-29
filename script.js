@@ -197,20 +197,22 @@ async function loadRecordsFromAPI() {
         
         if (response.ok) {
             const records = await response.json();
+            
+            // This safely translates the database columns into the exact format your frontend needs
             return records.map(record => ({
-                id: record.id,
-                serial: record.serial_number,
-                type: record.record_type,
-                name: record.record_name,
-                date: record.created_at ? record.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-                summary: `Audit record for ${record.record_name}`,
-                status: record.status,
-                logs: [],
-                excelData: null,
-                style: {},
-                mergeCells: null,
-                deleted: record.is_deleted,
-                deletedAt: record.deleted_at,
+                id: record.id || Date.now(),
+                serial: record.serial || record.serial_number || "Unknown Serial",
+                type: record.type || record.record_type || "Reimbursement",
+                name: record.name || record.record_name || "Untitled Record",
+                date: record.date || (record.created_at ? record.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+                summary: record.summary || `Audit record for ${record.name || record.record_name}`,
+                status: record.status || "Pending",
+                logs: record.logs || [],
+                excelData: record.excelData || record.excel_data || null,
+                style: record.style || {},
+                mergeCells: record.mergeCells || record.merge_cells || null,
+                deleted: record.deleted || record.is_deleted || false,
+                deletedAt: record.deletedAt || record.deleted_at || null,
                 api_id: record.id
             }));
         }
