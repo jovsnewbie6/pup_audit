@@ -81,4 +81,15 @@ router.post('/deactivate-user/:userId', authenticateToken, requireRole('Audit Su
     }
 });
 
+// Fetch active usernames for the login dropdown (No passwords exposed!)
+router.get('/public-users', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT username FROM users WHERE is_active = true ORDER BY username ASC');
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Error fetching public users:", error);
+        res.status(500).json({ error: "Failed to fetch users" });
+    }
+});
+
 module.exports = router;

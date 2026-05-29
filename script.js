@@ -6,9 +6,40 @@ var API_BASE_URL = window.location.origin + '/api';
 
 // ============ AUTHENTICATION FUNCTIONS ============
 
+// New function to dynamically fetch users
+async function populateLoginDropdown() {
+    const dropdown = document.getElementById('loginUsername');
+    // Safety check to make sure the dropdown actually exists on the page
+    if (!dropdown || dropdown.tagName !== 'SELECT') return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/public-users`);
+        if (response.ok) {
+            const users = await response.json();
+            
+            // Clear the old hardcoded HTML options and reset to default
+            dropdown.innerHTML = '<option value="" disabled selected>Select your account...</option>';
+            
+            // Loop through the database results and create a new option for each user
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.username;
+                option.textContent = user.username; 
+                dropdown.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Failed to fetch users for dropdown:', error);
+    }
+}
+
+// Updated interface function
 function showAuthInterface() {
     document.getElementById('authContainer').style.display = 'flex';
     document.getElementById('appContainer').style.display = 'none';
+    
+    // Call the new function every time the login screen appears!
+    populateLoginDropdown(); 
 }
 
 function showMainInterface() {
