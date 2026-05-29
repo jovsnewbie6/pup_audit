@@ -1103,3 +1103,34 @@ async function loadRecordsFromAPI() {
         return null;
     }
 }
+
+async function saveRecordToServer(record) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/audit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({
+                record_name: record.name,
+                record_type: record.type,
+                serial_number: record.serial,
+                data: JSON.stringify({
+                    excelData: record.excelData,
+                    style: record.style,
+                    mergeCells: record.mergeCells,
+                    summary: record.summary,
+                    date: record.date,
+                    status: record.status
+                })
+            })
+        });
+
+        if (!response.ok) {
+            console.error('Failed to save record to database');
+        }
+    } catch (err) {
+        console.error('Error connecting to backend:', err);
+    }
+}
