@@ -15,58 +15,44 @@
 </head>
 <body>
     <!-- AUTH SCREENS -->
-    <div id="authContainer" class="auth-container" style="display: none;">
-        <!-- Login Screen -->
-        <div id="loginScreen" class="auth-screen active">
-            <div class="auth-box">
-                <h1 class="auth-logo">PUP Audit</h1>
-                <h2>Login</h2>
-                <form id="loginForm" onsubmit="handleLogin(event)">
-                    <div class="auth-form-group">
-                        <label>Username</label>
-                        <input type="text" id="loginUsername" placeholder="Enter username" required>
-                    </div>
-                    <div class="auth-form-group">
-                        <label>Password</label>
-                        <input type="password" id="loginPassword" placeholder="Enter password" required>
-                    </div>
-                    <button type="submit" class="auth-btn">Login</button>
-                    <p class="auth-switch">Don't have an account? <a href="#" onclick="switchToRegister(event)">Register</a></p>
-                </form>
-                <p id="loginError" class="auth-error"></p>
-            </div>
+    <div id="authContainer" class="auth-container">
+    <div class="auth-box">
+        <div id="loginScreen" class="active">
+            <h2>PUP Internal Audit</h2>
+            <p>Log in to your account</p>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                
+                <select id="loginUsername" required>
+                    <option value="" disabled selected>Select your account...</option>
+                    <option value="admin">Admin Supervisor</option>
+                    <option value="juan_delacruz">Juan Dela Cruz</option>
+                    <option value="maria_clara">Maria Clara</option>
+                    </select>
+
+                <input type="password" id="loginPassword" placeholder="Password" required>
+                <button type="submit" class="auth-btn">Sign In</button>
+                <p id="loginError" class="error-msg"></p>
+            </form>
+            <p class="switch-auth">Need an account? <a href="#" onclick="switchToRegister(event)">Register here</a></p>
         </div>
 
-        <!-- Registration Screen -->
-        <div id="registerScreen" class="auth-screen">
-            <div class="auth-box">
-                <h1 class="auth-logo">PUP Audit</h1>
-                <h2>Register</h2>
-                <form id="registerForm" onsubmit="handleRegister(event)">
-                    <div class="auth-form-group">
-                        <label>Username</label>
-                        <input type="text" id="registerUsername" placeholder="Choose username" required>
-                    </div>
-                    <div class="auth-form-group">
-                        <label>Email</label>
-                        <input type="email" id="registerEmail" placeholder="Enter email" required>
-                    </div>
-                    <div class="auth-form-group">
-                        <label>Password</label>
-                        <input type="password" id="registerPassword" placeholder="Enter password" required>
-                    </div>
-                    <div class="auth-form-group">
-                        <label>Confirm Password</label>
-                        <input type="password" id="confirmPassword" placeholder="Confirm password" required>
-                    </div>
-                    <button type="submit" class="auth-btn">Register</button>
-                    <p class="auth-switch">Already have an account? <a href="#" onclick="switchToLogin(event)">Login</a></p>
-                </form>
-                <p id="registerError" class="auth-error"></p>
-            </div>
+        <div id="registerScreen">
+            <h2>Create Account</h2>
+            <p>Register a new staff member</p>
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <input type="text" id="registerUsername" placeholder="New Username" required>
+                <input type="password" id="registerPassword" placeholder="New Password" required>
+                <select id="registerRole" required>
+                    <option value="Staff Auditor">Staff Auditor</option>
+                    <option value="Audit Supervisor">Audit Supervisor</option>
+                </select>
+                <button type="submit" class="auth-btn">Register</button>
+                <p id="registerError" class="error-msg"></p>
+            </form>
+            <p class="switch-auth">Already have an account? <a href="#" onclick="switchToLogin(event)">Sign In</a></p>
         </div>
     </div>
-
+</div>
     <!-- MAIN APP -->
     <div id="appContainer" class="layout" style="display: none;">
         <aside class="sidebar">

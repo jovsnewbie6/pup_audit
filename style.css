@@ -143,23 +143,88 @@ header p { color: #7f8c8d; margin-top: 0; font-size: 1.1em; }
 .modal-content.minimized .win-btn:hover { color: #FFD700; }
 
 /* AUTHENTICATION SCREENS */
-.auth-container { display: flex; justify-content: flex-end; align-items: center; width: 100%; height: 100vh; background: linear-gradient(135deg, rgba(128, 0, 0, 0.7) 0%, rgba(90, 0, 0, 0.7) 100%), url('pupauditbg.jpg') center/cover no-repeat; padding-right: 80px; }
-.auth-screen { display: none; }
-.auth-screen.active { display: block; }
-.auth-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); width: 100%; max-width: 420px; }
-.auth-logo { text-align: center; color: #800000; font-size: 2.5em; margin: 0 0 10px 0; letter-spacing: 2px; font-weight: bold; }
-.auth-box h2 { color: #333; text-align: center; margin: 0 0 30px 0; font-size: 1.8em; }
-.auth-form-group { margin-bottom: 20px; }
-.auth-form-group label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; font-size: 0.95em; }
-.auth-form-group input { width: 100%; padding: 12px 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 1em; transition: 0.3s; }
-.auth-form-group input:focus { outline: none; border-color: #800000; box-shadow: 0 0 0 3px rgba(128, 0, 0, 0.1); }
-.auth-btn { width: 100%; padding: 12px; background-color: #800000; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1.05em; font-weight: bold; transition: 0.3s; margin-top: 10px; }
-.auth-btn:hover { background-color: #a30000; }
-.auth-switch { text-align: center; margin-top: 20px; color: #7f8c8d; font-size: 0.95em; }
-.auth-switch a { color: #800000; text-decoration: none; font-weight: bold; }
-.auth-switch a:hover { text-decoration: underline; }
-.auth-error { color: #c0392b; background: #fadbd8; padding: 12px; border-radius: 6px; margin-top: 15px; font-size: 0.9em; text-align: center; border-left: 4px solid #c0392b; display: none; }
-.auth-error.show { display: block; }
+.auth-container {
+    background-image: url('./pupauditbg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-box {
+    background-color: rgba(255, 255, 255, 0.92); 
+    backdrop-filter: blur(5px);
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.auth-box h2 {
+    color: #800000;
+    margin-bottom: 10px;
+}
+
+/* This targets BOTH text inputs and the new select dropdown */
+.auth-box input,
+.auth-box select {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.auth-btn {
+    width: 100%;
+    padding: 12px;
+    background-color: #800000;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.auth-btn:hover {
+    background-color: #5a0000;
+}
+
+.switch-auth {
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.switch-auth a {
+    color: #800000;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.error-msg {
+    color: #dc2626;
+    font-size: 14px;
+    margin-top: 10px;
+    min-height: 20px;
+}
+
+#loginScreen, #registerScreen {
+    display: none;
+}
+
+#loginScreen.active, #registerScreen.active {
+    display: block;
+}
 
 /* HEADER WITH USER INFO */
 header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
