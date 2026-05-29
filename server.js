@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const pool = require('./db');
 const bcrypt = require('bcryptjs');
+const pool = require('./pool');
 require('dotenv').config();
 
 const app = express();

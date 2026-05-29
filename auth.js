@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const pool = require('./db');
+const pool = require('./pool');
 const { authenticateToken, requireRole } = require('./middleware');
 
 router.post('/login', async (req, res) => {
