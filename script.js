@@ -14,6 +14,14 @@ function showAuthInterface() {
 function showMainInterface() {
     document.getElementById('authContainer').style.display = 'none';
     document.getElementById('appContainer').style.display = 'flex';
+    
+    // Security check: Only show the Manage Users button to Supervisors
+    const adminBtn = document.getElementById('permissionsBtn');
+    if (adminBtn && currentUser && currentUser.role === 'Audit Supervisor') {
+        adminBtn.style.display = 'inline-block';
+    } else if (adminBtn) {
+        adminBtn.style.display = 'none';
+    }
 }
 
 // Handle login
@@ -1003,5 +1011,119 @@ async function handlePasswordChange(event) {
         console.error('Password change error:', error);
         errorEl.style.color = '#dc2626'; 
         errorEl.textContent = 'Connection error. Please try again.';
+    }
+}
+
+// ============ ADMIN USER MANAGEMENT ============
+
+async function openPermissionsModal() {
+    document.getElementById('permissionsModal').style.display = 'block';
+    await loadUsersList(); // Fetch fresh data from the database
+}
+
+function closePermissionsModal() {
+    document.getElementById('permissionsModal').style.display = 'none';
+    document.getElementById('adminRegisterForm').reset();
+    document.getElementById('adminRegisterMsg').textContent = '';
+}
+
+// Fetch users from PostgreSQL
+async function loadUsersList() {
+    const container = document.getElementById('permissionsContainer');
+    container.innerHTML = '<p>Loading users...</p>';
+
+    try {
+        const response = await apiCall('/auth/users');
+        if (!response) throw new Error("No response from server");
+        
+        const users = await response.json();
+        
+        if (response.ok) {
+            let html = `
+                <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+                    <tr style="background: #eee; text-align: left;">
+                        <th style="padding: 10px; border-bottom: 2px solid #ddd;">Username</th>
+                        <th style="padding: 10px; border-bottom: 2px solid #ddd;">Role</th>
+                        <th style="padding: 10px; border-bottom: 2px solid #ddd;">Status</th>
+                        <th style="padding: 10px; border-bottom: 2px solid #ddd;">Actions</th>
+                    </tr>
+            `;
+            
+            users.forEach(user => {
+                const isMe = currentUser.username === user.username;
+                html += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px;"><strong>${user.username}</strong> ${isMe ? '<span style="color:#888;">(You)</span>' : ''}</td>
+                        <td style="padding: 10px;">${user.role}</td>
+                        <td style="padding: 10px; font-weight: bold; color: ${user.is_active ? '#059669' : '#dc2626'}">
+                            ${user.is_active ? 'Active' : 'Deactivated'}
+                        </td>
+                        <td style="padding: 10px;">
+                            ${!isMe && user.is_active ? 
+                                `<button onclick="deactivateAccount(${user.id})" class="danger-btn" style="padding: 4px 8px; font-size: 12px;">Deactivate</button>` 
+                                : ''}
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += `</table>`;
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `<p style="color: #dc2626;">Error: ${users.error}</p>`;
+        }
+    } catch (error) {
+        container.innerHTML = '<p style="color: #dc2626;">Failed to connect to the database.</p>';
+    }
+}
+
+// Create a new user
+async function handleAdminRegister(event) {
+    event.preventDefault();
+    const username = document.getElementById('newUsername').value;
+    const password = document.getElementById('newUserPassword').value;
+    const role = document.getElementById('newUserRole').value;
+    const msgEl = document.getElementById('adminRegisterMsg');
+    
+    msgEl.style.color = '#333';
+    msgEl.textContent = 'Creating account...';
+    
+    try {
+        const response = await apiCall('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({ username, password, role })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            msgEl.style.color = '#059669'; 
+            msgEl.textContent = 'Account successfully created!';
+            document.getElementById('adminRegisterForm').reset();
+            loadUsersList(); // Refresh the table automatically
+            setTimeout(() => msgEl.textContent = '', 3000);
+        } else {
+            msgEl.style.color = '#dc2626'; 
+            msgEl.textContent = data.error || 'Username might already exist.';
+        }
+    } catch (error) {
+        msgEl.style.color = '#dc2626';
+        msgEl.textContent = 'Connection error.';
+    }
+}
+
+// Deactivate a user
+async function deactivateAccount(userId) {
+    if (!confirm("Are you sure you want to deactivate this account? They will be locked out immediately.")) return;
+    
+    try {
+        const response = await apiCall(`/auth/deactivate-user/${userId}`, { method: 'POST' });
+        if (response.ok) {
+            loadUsersList(); // Refresh the table to show them as deactivated
+        } else {
+            alert("Failed to deactivate account.");
+        }
+    } catch (error) {
+        alert("Connection error.");
     }
 }

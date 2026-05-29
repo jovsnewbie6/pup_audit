@@ -227,18 +227,43 @@
         </div>
     </div>
 
-    <!-- PERMISSIONS MANAGEMENT MODAL -->
     <div id="permissionsModal" class="modal">
-        <div class="modal-content" style="max-width: 1000px;">
-            <span class="close-btn" onclick="closePermissionsModal()">&times;</span>
-            <h2>Manage Staff Auditor Permissions</h2>
-            <p class="helper-text">As Audit Supervisor, you can control what actions Staff Auditors can perform. Changes apply to all new Staff Auditors and can be customized per user.</p>
-            
-            <div id="permissionsContainer" style="margin-top: 20px;"></div>
-            
-            <button onclick="savePermissions()" class="primary-btn" style="margin-top: 20px;">💾 Save Changes</button>
+    <div class="modal-content" style="max-width: 800px;">
+        <span class="close-btn" onclick="closePermissionsModal()">&times;</span>
+        <h2>👥 Manage Users & Permissions</h2>
+        <p class="helper-text">As an Audit Supervisor, you can create new auditor accounts and manage existing ones.</p>
+        
+        <div style="background: #f9f9f9; padding: 15px; border: 1px solid #ddd; border-radius: 6px; margin-top: 20px;">
+            <h3 style="margin-bottom: 10px; color: #800000;">+ Create New User</h3>
+            <form id="adminRegisterForm" onsubmit="handleAdminRegister(event)" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                    <label>Username</label>
+                    <input type="text" id="newUsername" required placeholder="Enter username">
+                </div>
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                    <label>Password</label>
+                    <input type="password" id="newUserPassword" required placeholder="Enter password">
+                </div>
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                    <label>Role</label>
+                    <select id="newUserRole">
+                        <option value="Staff Auditor">Staff Auditor</option>
+                        <option value="Audit Supervisor">Audit Supervisor</option>
+                    </select>
+                </div>
+                <button type="submit" class="primary-btn" style="height: 42px;">Create Account</button>
+            </form>
+            <p id="adminRegisterMsg" style="margin-top: 10px; font-weight: bold;"></p>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <h3 style="color: #800000;">System Users</h3>
+            <div id="permissionsContainer" style="max-height: 300px; overflow-y: auto;">
+                <p>Loading users...</p>
+            </div>
         </div>
     </div>
+</div>
 
     <!-- PASSWORD CHANGE MODAL -->
     <div id="passwordModal" class="modal">
