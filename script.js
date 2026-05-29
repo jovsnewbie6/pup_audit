@@ -880,3 +880,67 @@ function restoreModal() {
     isMinimized = false; modalContent.classList.remove('minimized'); document.getElementById('fileModal').classList.remove('minimized-backdrop');
     modalContent.onclick = null; 
 }
+
+// ============ USER SETTINGS & PASSWORD ============
+
+function openPasswordModal() {
+    document.getElementById('passwordModal').style.display = 'block';
+}
+
+function closePasswordModal() {
+    document.getElementById('passwordModal').style.display = 'none';
+    document.getElementById('passwordForm').reset();
+    document.getElementById('passwordError').textContent = '';
+}
+
+// Close the modal if they click the dark background outside of it
+window.addEventListener('click', function(event) {
+    if (event.target == document.getElementById('passwordModal')) {
+        closePasswordModal();
+    }
+});
+
+async function handlePasswordChange(event) {
+    event.preventDefault(); // Stop the page from refreshing
+    
+    const oldPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmNewPassword').value;
+    const errorEl = document.getElementById('passwordError');
+    
+    // Quick frontend check: did they type the same new password twice?
+    if (newPassword !== confirmPassword) {
+        errorEl.style.color = '#dc2626'; // Red
+        errorEl.textContent = 'New passwords do not match!';
+        return;
+    }
+    
+    try {
+        // Send the secure request to your Node.js backend
+        const response = await apiCall('/auth/change-password', {
+            method: 'POST',
+            body: JSON.stringify({ oldPassword, newPassword })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Success!
+            errorEl.style.color = '#059669'; // Green
+            errorEl.textContent = 'Password updated successfully!';
+            
+            // Wait 1.5 seconds so they can read the success message, then close
+            setTimeout(() => {
+                closePasswordModal();
+            }, 1500);
+        } else {
+            // Backend rejected it (e.g., wrong old password)
+            errorEl.style.color = '#dc2626'; // Red
+            errorEl.textContent = data.error || 'Failed to update password.';
+        }
+    } catch (error) {
+        console.error('Password change error:', error);
+        errorEl.style.color = '#dc2626'; // Red
+        errorEl.textContent = 'Connection error. Please try again.';
+    }
+}
