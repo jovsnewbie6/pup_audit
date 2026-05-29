@@ -151,7 +151,7 @@ async function loadRecordsFromAPI() {
     if (!currentUser || !currentToken) return null;
     
     try {
-        const response = await apiCall('/audit/records');
+        const response = await apiCall('/audit');
         if (!response) return null;
         
         if (response.ok) {
@@ -269,7 +269,7 @@ async function deleteCurrentRecord() {
             
             // If record has API ID, call API delete
             if (record && record.api_id && currentToken) {
-                const response = await apiCall(`/audit/records/${record.api_id}`, {
+                const response = await apiCall(`/audit/${record.api_id}`, {
                     method: 'DELETE'
                 });
                 
@@ -733,7 +733,7 @@ function deleteCurrentRecord() {
             
             // If record has API ID, call API delete
             if (record && record.api_id && currentToken) {
-                fetch(`${API_BASE_URL}/audit/records/${record.api_id}`, {
+                fetch(`${API_BASE_URL}/audit/${record.api_id}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${currentToken}` }
                 }).then(res => {
