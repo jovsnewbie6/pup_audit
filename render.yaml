@@ -1,33 +1,15 @@
-# Render Deployment Configuration
-
-This web service is configured for deployment on Render.com
-
-## Environment Variables Required
-
-```
-DATABASE_URL=postgresql://user:password@your-neon-endpoint.aws.neon.tech/database_name?sslmode=require
-JWT_SECRET=your_super_secret_key_here
-NODE_ENV=production
-PORT=10000
-```
-
-## Build & Start Commands
-
-**Build Command:**
-```
-npm install
-```
-
-**Start Command:**
-```
-node server.js
-```
-
-## Notes
-
-- Neon PostgreSQL database ensures data persistence (won't be deleted after 30 days)
-- Free tier is sufficient for small team usage
-- Paid tiers available for scaling
+services:
+  - type: web
+    name: pup-audit
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
 - Render automatically manages deployments from GitHub
 
 ## First Run
