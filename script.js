@@ -2,7 +2,7 @@
 let currentUser = null;
 let currentToken = localStorage.getItem('authToken') || null;
 let mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
-const API_BASE_URL = window.location.origin + '/api'; // Use relative URL for backend
+const API_BASE_URL = window.location.origin + '/api'; 
 
 // ============ AUTHENTICATION FUNCTIONS ============
 
@@ -15,7 +15,6 @@ function showMainInterface() {
     document.getElementById('authContainer').style.display = 'none';
     document.getElementById('appContainer').style.display = 'flex';
     
-    // Security check: Only show the Manage Users button to Supervisors
     const adminBtn = document.getElementById('permissionsBtn');
     if (adminBtn && currentUser && currentUser.role === 'Audit Supervisor') {
         adminBtn.style.display = 'inline-block';
@@ -24,7 +23,6 @@ function showMainInterface() {
     }
 }
 
-// Handle login
 async function handleLogin(event) {
     event.preventDefault();
     const username = document.getElementById('loginUsername').value;
@@ -59,7 +57,6 @@ async function handleLogin(event) {
     }
 }
 
-// Handle registration
 async function handleRegister(event) {
     event.preventDefault();
     const username = document.getElementById('registerUsername').value;
@@ -94,7 +91,6 @@ async function handleRegister(event) {
     }
 }
 
-// Switch between login and register screens
 function switchToRegister(event) {
     event.preventDefault();
     document.getElementById('loginScreen').classList.remove('active');
@@ -107,7 +103,6 @@ function switchToLogin(event) {
     document.getElementById('loginScreen').classList.add('active');
 }
 
-// Handle logout
 function handleLogout() {
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentUser');
@@ -116,7 +111,6 @@ function handleLogout() {
     showAuthInterface();
 }
 
-// Generic API call helper
 async function apiCall(endpoint, options = {}) {
     const headers = {
         'Content-Type': 'application/json',
@@ -140,7 +134,6 @@ async function apiCall(endpoint, options = {}) {
     }
 }
 
-// Initialize authentication on page load
 function initializeAuth() {
     const token = localStorage.getItem('authToken');
     const user = localStorage.getItem('currentUser');
@@ -154,7 +147,6 @@ function initializeAuth() {
     }
 }
 
-// Override initial data loading to use API if available
 async function loadRecordsFromAPI() {
     if (!currentUser || !currentToken) return null;
     
@@ -164,7 +156,6 @@ async function loadRecordsFromAPI() {
         
         if (response.ok) {
             const records = await response.json();
-            // Transform API records to match mockDatabase format
             return records.map(record => ({
                 id: record.id,
                 serial: record.serial_number,
@@ -188,29 +179,23 @@ async function loadRecordsFromAPI() {
     }
 }
 
-// Override the initial DOMContentLoaded logic
 const originalDOMContentLoaded = document.addEventListener.bind(document);
 document.addEventListener = function(event, handler) {
     if (event === 'DOMContentLoaded') {
         return originalDOMContentLoaded(event, async () => {
-            // Initialize authentication UI first
             initializeAuth();
             
-            // Check if we have auth token
             if (currentToken && currentUser) {
-                // Load from API first
                 const apiRecords = await loadRecordsFromAPI();
                 if (apiRecords) {
                     mockDatabase = apiRecords;
                 } else {
-                    // Fallback to localStorage
                     mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
                 }
             } else {
                 mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
             }
             
-            // Apply 30-day auto purge
             const now = new Date();
             mockDatabase = mockDatabase.filter(recordData => {
                 if (recordData.deleted && recordData.deletedAt) {
@@ -226,7 +211,6 @@ document.addEventListener = function(event, handler) {
                 document.getElementById('searchInput').addEventListener('keyup', searchRecords);
             }
             
-            // Call original handler
             handler();
         });
     }
@@ -242,7 +226,6 @@ let isFullScreen = false;
 let isMinimized = false;
 let expandedSidebar = { "Reimbursement": true, "Liquidation": true };
 
-// 30-Day Auto Purge for Recycle Bin
 const now = new Date();
 mockDatabase = mockDatabase.filter(recordData => {
     if (recordData.deleted && recordData.deletedAt) {
@@ -255,67 +238,22 @@ mockDatabase = mockDatabase.filter(recordData => {
 function saveToMemory() { 
     localStorage.setItem('pupDatabase', JSON.stringify(mockDatabase));
     
-    // Also sync to backend if user is authenticated
     if (currentUser && currentToken) {
         syncRecordsToAPI();
     }
 }
 
-// Sync records to API
-async function syncRecordsToAPI() {
-    // This is optional - records can also be managed through individual API calls
-    // For now, we'll handle this at the individual operation level
-}
+async function syncRecordsToAPI() {}
 
-// Enhanced delete function with API call
-async function deleteCurrentRecord() {
-    if (!currentOpenRecordId) return;
-    
-    if(confirm("Move this record to the Recycle Bin? It will be permanently deleted after 30 days.")) {
-        try {
-            const record = mockDatabase.find(c => c.id === currentOpenRecordId);
-            
-            // If record has API ID, call API delete
-            if (record && record.api_id && currentToken) {
-                const response = await apiCall(`/audit/${record.api_id}`, {
-                    method: 'DELETE'
-                });
-                
-                if (!response.ok) {
-                    alert('Failed to delete record on server');
-                    return;
-                }
-            }
-            
-            // Update local database
-            record.deleted = true;
-            record.deletedAt = new Date().toISOString();
-            saveToMemory();
-            closeModal();
-            renderSidebar();
-            searchRecords();
-        } catch (error) {
-            console.error('Delete error:', error);
-            alert('Error deleting record');
-        }
-    }
-}
-
-// Check if delete button should be shown
 function canDeleteRecords() {
     if (!currentUser) return false;
-    // Audit Supervisors can always delete
     if (currentUser.role === 'Audit Supervisor') return true;
-    // Staff Auditors cannot delete (permission configurable by supervisor)
     return false;
 }
 
-// Ensure HTML is loaded before running
 document.addEventListener('DOMContentLoaded', () => { 
     renderSidebar(); 
     searchRecords(); 
-    
-    // Setup enter-key search
     document.getElementById('searchInput').addEventListener('keyup', searchRecords);
 });
 
@@ -341,7 +279,6 @@ function restoreDatabase(event) {
     };
     reader.readAsText(file);
 }
-
 
 // --- SIDEBAR & DASHBOARD ---
 function renderSidebar() {
@@ -454,10 +391,12 @@ function renderResults(data) {
 function openAddModal() { document.getElementById('addModal').style.display = 'block'; }
 function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
 
-window.onclick = function(event) { 
+window.addEventListener('click', function(event) { 
     if (event.target == document.getElementById('addModal')) closeAddModal(); 
     if (event.target == document.getElementById('addRowModal')) closeAddRowModal(); 
-}
+    if (event.target == document.getElementById('passwordModal')) closePasswordModal();
+    if (event.target == document.getElementById('settingsModal')) closeSettingsModal();
+});
 
 async function submitNewRecord(event) {
     event.preventDefault(); 
@@ -506,7 +445,6 @@ async function submitNewRecord(event) {
             deletedAt: null 
         };
 
-        // Handle File Upload
         if (fileInput && fileInput.files.length > 0 && fileInput.files[0].name.match(/\.(xlsx|xls|csv)$/i)) {
             const reader = new FileReader();
             reader.onload = async function(e) {
@@ -514,12 +452,11 @@ async function submitNewRecord(event) {
                 newRecord.excelData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
                 
                 mockDatabase.push(newRecord); 
-                await saveRecordToServer(newRecord); // <-- SEND TO POSTGRES
+                await saveRecordToServer(newRecord); 
                 finishSubmission();
             };
             reader.readAsArrayBuffer(fileInput.files[0]);
             
-        // Handle Manual Form Entry
         } else {
             const rowData = [
                 getValue('f_no'), getValue('f_fund'), getValue('f_checkDate'), getValue('f_officer'),
@@ -546,99 +483,7 @@ async function submitNewRecord(event) {
             columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
             
             mockDatabase.push(newRecord); 
-            await saveRecordToServer(newRecord); // <-- SEND TO POSTGRES
-            finishSubmission();
-        }
-    } catch (err) {
-        alert("There was an error submitting the record. Please check your form. Error: " + err.message);
-    }
-}
-    
-    try {
-        const getValue = (id) => document.getElementById(id) ? document.getElementById(id).value : "";
-
-        let dynamicName = getValue('f_project');
-        if (!dynamicName) dynamicName = "Untitled Record";
-        
-        let dynamicDate = getValue('f_dateAssign') || getValue('f_checkDate');
-        if (!dynamicDate) dynamicDate = new Date().toISOString().split('T')[0];
-
-        const summary = `Audit record generated for ${dynamicName}.`;
-        const fileInput = document.getElementById('newFile');
-
-        const yearStr = dynamicDate.split('-')[0] || new Date().getFullYear();
-        const typeIndicator = currentTab === 'Reimbursement' ? 'R' : 'L';
-        
-        const similarRecords = mockDatabase.filter(c => c.type === currentTab && c.date && c.date.startsWith(yearStr));
-        let maxSequence = 0;
-        
-        similarRecords.forEach(c => {
-            if (c.serial) {
-                const parts = c.serial.split(' - ');
-                if (parts.length === 2) {
-                    const num = parseInt(parts[1], 10);
-                    if (!isNaN(num) && num > maxSequence) {
-                        maxSequence = num;
-                    }
-                }
-            }
-        });
-        
-        const nextSequenceNumber = maxSequence + 1;
-        const generatedSerial = `AUD-${typeIndicator}: ${yearStr} - ${String(nextSequenceNumber).padStart(4, '0')}`;
-
-        const newRecord = { 
-            id: Date.now(), 
-            serial: generatedSerial, 
-            type: currentTab, 
-            name: dynamicName, 
-            date: dynamicDate, 
-            summary: summary, 
-            status: "Pending", 
-            logs: [], 
-            excelData: null, 
-            style: {}, 
-            mergeCells: null, 
-            deleted: false, 
-            deletedAt: null 
-        };
-
-        if (fileInput && fileInput.files.length > 0 && fileInput.files[0].name.match(/\.(xlsx|xls|csv)$/i)) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
-                newRecord.excelData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
-                mockDatabase.push(newRecord); 
-                finishSubmission();
-            };
-            reader.readAsArrayBuffer(fileInput.files[0]);
-        } else {
-            const rowData = [
-                getValue('f_no'), getValue('f_fund'), getValue('f_checkDate'), getValue('f_officer'),
-                getValue('f_transType'), getValue('f_soNum'), getValue('f_soDate'), getValue('f_project'),
-                getValue('f_incDates'), getValue('f_amtGranted'), getValue('f_amtLiq'), getValue('f_auditor'),
-                getValue('f_dateAssign'), 
-                "", "", "", "", "", ""
-            ];
-
-            const formattedDate = new Date(dynamicDate).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
-            
-            const headers = ["No.", "Fund", "Check Date", "Accountable Officer", "Transaction Type", "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Amount Granted", "Amount", "Auditor", "Date Assign", "Date Audited", "Audit Result", "Date Forwarded to the Chief", "Reviewed by / Comments", "Reviewed by / Date", "Remarks"];
-            
-            newRecord.excelData = [
-                [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`, ...Array(18).fill("")],
-                [`For the Fiscal Year ${yearStr}`, ...Array(18).fill("")],
-                [`As of ${formattedDate}`, ...Array(18).fill("")],
-                headers, 
-                rowData
-            ];
-            
-            newRecord.mergeCells = { A1: [19, 1], A2: [19, 1], A3: [19, 1] };
-            newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
-            const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
-            columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
-            
-            mockDatabase.push(newRecord); 
+            await saveRecordToServer(newRecord); 
             finishSubmission();
         }
     } catch (err) {
@@ -726,7 +571,6 @@ function openModal(id) {
     document.getElementById('modalTitle').innerText = `[${record.serial}] Audit Worksheet: ${record.name}`;
     document.getElementById('recordStatusDropdown').value = record.status || "Pending";
     
-    // Update delete button visibility based on permissions
     const deleteBtn = document.querySelector('.delete-btn');
     if (deleteBtn) {
         if (canDeleteRecords()) {
@@ -824,40 +668,30 @@ function addAuditLog() {
 }
 
 // --- DELETE & RECYCLE BIN ---
-function deleteCurrentRecord() {
+async function deleteCurrentRecord() {
     if (!currentOpenRecordId) return;
     
     if(confirm("Move this record to the Recycle Bin? It will be permanently deleted after 30 days.")) {
         try {
             const record = mockDatabase.find(c => c.id === currentOpenRecordId);
             
-            // If record has API ID, call API delete
             if (record && record.api_id && currentToken) {
-                fetch(`${API_BASE_URL}/audit/${record.api_id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${currentToken}` }
-                }).then(res => {
-                    if (!res.ok) throw new Error('Server delete failed');
-                    // Update local database
-                    record.deleted = true;
-                    record.deletedAt = new Date().toISOString();
-                    saveToMemory();
-                    closeModal();
-                    renderSidebar();
-                    searchRecords();
-                }).catch(err => {
-                    console.error('Delete error:', err);
-                    alert('Error deleting record');
+                const response = await apiCall(`/audit/${record.api_id}`, {
+                    method: 'DELETE'
                 });
-            } else {
-                // Fallback to local deletion
-                record.deleted = true;
-                record.deletedAt = new Date().toISOString();
-                saveToMemory();
-                closeModal();
-                renderSidebar();
-                searchRecords();
+                
+                if (!response.ok) {
+                    alert('Failed to delete record on server');
+                    return;
+                }
             }
+            
+            record.deleted = true;
+            record.deletedAt = new Date().toISOString();
+            saveToMemory();
+            closeModal();
+            renderSidebar();
+            searchRecords();
         } catch (error) {
             console.error('Delete error:', error);
             alert('Error deleting record');
@@ -993,60 +827,6 @@ function closePasswordModal() {
     document.getElementById('passwordError').textContent = '';
 }
 
-// Close the modal if they click the dark background outside of it
-window.addEventListener('click', function(event) {
-    if (event.target == document.getElementById('passwordModal')) {
-        closePasswordModal();
-    }
-});
-
-async function handlePasswordChange(event) {
-    event.preventDefault(); // Stop the page from refreshing
-    
-    const oldPassword = document.getElementById('currentPassword').value;
-    const newPassword = document.getElementById('newPassword').value;
-    const confirmPassword = document.getElementById('confirmNewPassword').value;
-    const errorEl = document.getElementById('passwordError');
-    
-    // Quick frontend check: did they type the same new password twice?
-    if (newPassword !== confirmPassword) {
-        errorEl.style.color = '#dc2626'; // Red
-        errorEl.textContent = 'New passwords do not match!';
-        return;
-    }
-    
-    try {
-        // Send the secure request to your Node.js backend
-        const response = await apiCall('/auth/change-password', {
-            method: 'POST',
-            body: JSON.stringify({ oldPassword, newPassword })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            // Success!
-            errorEl.style.color = '#059669'; // Green
-            errorEl.textContent = 'Password updated successfully!';
-            
-            // Wait 1.5 seconds so they can read the success message, then close
-            setTimeout(() => {
-                closePasswordModal();
-            }, 1500);
-        } else {
-            // Backend rejected it (e.g., wrong old password)
-            errorEl.style.color = '#dc2626'; // Red
-            errorEl.textContent = data.error || 'Failed to update password.';
-        }
-    } catch (error) {
-        console.error('Password change error:', error);
-        errorEl.style.color = '#dc2626'; // Red
-        errorEl.textContent = 'Connection error. Please try again.';
-    }
-}
-
-// ============ USER SETTINGS & PASSWORD ============
-
 function openSettingsModal() {
     document.getElementById('settingsModal').style.display = 'block';
     if (currentUser) {
@@ -1060,12 +840,6 @@ function closeSettingsModal() {
     document.getElementById('passwordForm').reset();
     document.getElementById('passwordError').textContent = '';
 }
-
-window.addEventListener('click', function(event) {
-    if (event.target == document.getElementById('settingsModal')) {
-        closeSettingsModal();
-    }
-});
 
 async function handlePasswordChange(event) {
     event.preventDefault(); 
@@ -1094,6 +868,7 @@ async function handlePasswordChange(event) {
             errorEl.textContent = 'Password updated successfully!';
             setTimeout(() => {
                 closeSettingsModal();
+                closePasswordModal();
             }, 1500);
         } else {
             errorEl.style.color = '#dc2626'; 
@@ -1110,7 +885,7 @@ async function handlePasswordChange(event) {
 
 async function openPermissionsModal() {
     document.getElementById('permissionsModal').style.display = 'block';
-    await loadUsersList(); // Fetch fresh data from the database
+    await loadUsersList();
 }
 
 function closePermissionsModal() {
@@ -1119,7 +894,6 @@ function closePermissionsModal() {
     document.getElementById('adminRegisterMsg').textContent = '';
 }
 
-// Fetch users from PostgreSQL
 async function loadUsersList() {
     const container = document.getElementById('permissionsContainer');
     container.innerHTML = '<p>Loading users...</p>';
@@ -1169,7 +943,6 @@ async function loadUsersList() {
     }
 }
 
-// Create a new user
 async function handleAdminRegister(event) {
     event.preventDefault();
     const username = document.getElementById('newUsername').value;
@@ -1192,7 +965,7 @@ async function handleAdminRegister(event) {
             msgEl.style.color = '#059669'; 
             msgEl.textContent = 'Account successfully created!';
             document.getElementById('adminRegisterForm').reset();
-            loadUsersList(); // Refresh the table automatically
+            loadUsersList(); 
             setTimeout(() => msgEl.textContent = '', 3000);
         } else {
             msgEl.style.color = '#dc2626'; 
@@ -1204,14 +977,13 @@ async function handleAdminRegister(event) {
     }
 }
 
-// Deactivate a user
 async function deactivateAccount(userId) {
     if (!confirm("Are you sure you want to deactivate this account? They will be locked out immediately.")) return;
     
     try {
         const response = await apiCall(`/auth/deactivate-user/${userId}`, { method: 'POST' });
         if (response.ok) {
-            loadUsersList(); // Refresh the table to show them as deactivated
+            loadUsersList(); 
         } else {
             alert("Failed to deactivate account.");
         }
@@ -1223,7 +995,6 @@ async function deactivateAccount(userId) {
 async function saveRecordToServer(record) {
     if (!currentToken) return;
     try {
-        // We are using the exact same /audit route we fixed earlier
         const response = await apiCall('/audit', {
             method: 'POST',
             body: JSON.stringify(record)
@@ -1231,7 +1002,6 @@ async function saveRecordToServer(record) {
         
         if (response && response.ok) {
             const savedData = await response.json();
-            // Attach the real database ID to the local record so we can delete/edit it later
             record.api_id = savedData.id; 
             console.log("Successfully saved to database!");
         } else {
@@ -1241,4 +1011,3 @@ async function saveRecordToServer(record) {
         console.error("Failed to connect to backend:", error);
     }
 }
-
