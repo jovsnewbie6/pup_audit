@@ -1060,21 +1060,32 @@ async function deactivateAccount(userId) {
 }
 
 async function saveRecordToServer(record) {
-    if (!currentToken) return;
     try {
-        const response = await apiCall('/audit', {
+        const response = await fetch(`${API_BASE_URL}/audit`, {
             method: 'POST',
-            body: JSON.stringify(record)
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({
+                record_name: record.name,
+                record_type: record.type,
+                serial_number: record.serial,
+                data: JSON.stringify({
+                    excelData: record.excelData,
+                    style: record.style,
+                    mergeCells: record.mergeCells,
+                    summary: record.summary,
+                    date: record.date,
+                    status: record.status
+                })
+            })
         });
-        
-        if (response && response.ok) {
-            const savedData = await response.json();
-            record.api_id = savedData.id; 
-            console.log("Successfully saved to database!");
-        } else {
-            console.error("Backend rejected the save request.");
+
+        if (!response.ok) {
+            console.error('Failed to save record to database');
         }
-    } catch (error) {
-        console.error("Failed to connect to backend:", error);
+    } catch (err) {
+        console.error('Error connecting to backend:', err);
     }
 }
