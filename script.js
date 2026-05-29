@@ -2,7 +2,7 @@
 var currentUser = null;
 var currentToken = localStorage.getItem('authToken') || null;
 let mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
-const API_BASE_URL = window.location.origin + '/api'; 
+var API_BASE_URL = window.location.origin + '/api'; 
 
 // ============ AUTHENTICATION FUNCTIONS ============
 
@@ -109,6 +109,11 @@ function handleLogout() {
     currentToken = null;
     currentUser = null;
     showAuthInterface();
+}
+
+// Alias for logout button
+function logout() {
+    handleLogout();
 }
 
 async function apiCall(endpoint, options = {}) {
