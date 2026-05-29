@@ -25,8 +25,14 @@ const initDB = async () => {
     try {
         await client.query('BEGIN');
         
+        // Drop tables if they exist (in reverse order of creation due to foreign keys)
+        await client.query('DROP TABLE IF EXISTS audit_logs CASCADE');
+        await client.query('DROP TABLE IF EXISTS audit_records CASCADE');
+        await client.query('DROP TABLE IF EXISTS permissions CASCADE');
+        await client.query('DROP TABLE IF EXISTS users CASCADE');
+        
         await client.query(`
-            CREATE TABLE IF NOT EXISTS users (
+            CREATE TABLE users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
@@ -37,7 +43,7 @@ const initDB = async () => {
         `);
 
         await client.query(`
-            CREATE TABLE IF NOT EXISTS audit_records (
+            CREATE TABLE audit_records (
                 id SERIAL PRIMARY KEY,
                 record_name VARCHAR(255) NOT NULL,
                 record_type VARCHAR(50) NOT NULL,
@@ -52,7 +58,7 @@ const initDB = async () => {
         `);
 
         await client.query(`
-            CREATE TABLE IF NOT EXISTS audit_logs (
+            CREATE TABLE audit_logs (
                 id SERIAL PRIMARY KEY,
                 record_id INTEGER REFERENCES audit_records(id),
                 user_id INTEGER REFERENCES users(id),
@@ -64,9 +70,8 @@ const initDB = async () => {
             );
         `);
 
-        // THIS IS THE FIX: Using UNIQUE instead of PRIMARY KEY for the composite
         await client.query(`
-            CREATE TABLE IF NOT EXISTS permissions (
+            CREATE TABLE permissions (
                 id SERIAL PRIMARY KEY,
                 role VARCHAR(50) NOT NULL,
                 action VARCHAR(100) NOT NULL,
@@ -87,10 +92,10 @@ const initDB = async () => {
         }
 
         await client.query('COMMIT');
-        console.log('Database initialized successfully.');
+        console.log('✓ Database initialized successfully.');
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error('Database initialization error:', err);
+        console.error('✗ Database initialization failed:', err.message);
     } finally {
         client.release();
     }
