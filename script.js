@@ -459,8 +459,100 @@ window.onclick = function(event) {
     if (event.target == document.getElementById('addRowModal')) closeAddRowModal(); 
 }
 
-function submitNewRecord(event) {
+async function submitNewRecord(event) {
     event.preventDefault(); 
+    
+    try {
+        const getValue = (id) => document.getElementById(id) ? document.getElementById(id).value : "";
+
+        let dynamicName = getValue('f_project') || "Untitled Record";
+        let dynamicDate = getValue('f_dateAssign') || getValue('f_checkDate') || new Date().toISOString().split('T')[0];
+
+        const summary = `Audit record generated for ${dynamicName}.`;
+        const fileInput = document.getElementById('newFile');
+
+        const yearStr = dynamicDate.split('-')[0] || new Date().getFullYear();
+        const typeIndicator = currentTab === 'Reimbursement' ? 'R' : 'L';
+        
+        const similarRecords = mockDatabase.filter(c => c.type === currentTab && c.date && c.date.startsWith(yearStr));
+        let maxSequence = 0;
+        
+        similarRecords.forEach(c => {
+            if (c.serial) {
+                const parts = c.serial.split(' - ');
+                if (parts.length === 2) {
+                    const num = parseInt(parts[1], 10);
+                    if (!isNaN(num) && num > maxSequence) maxSequence = num;
+                }
+            }
+        });
+        
+        const nextSequenceNumber = maxSequence + 1;
+        const generatedSerial = `AUD-${typeIndicator}: ${yearStr} - ${String(nextSequenceNumber).padStart(4, '0')}`;
+
+        const newRecord = { 
+            id: Date.now(), 
+            serial: generatedSerial, 
+            type: currentTab, 
+            name: dynamicName, 
+            date: dynamicDate, 
+            summary: summary, 
+            status: "Pending", 
+            logs: [], 
+            excelData: null, 
+            style: {}, 
+            mergeCells: null, 
+            deleted: false, 
+            deletedAt: null 
+        };
+
+        // Handle File Upload
+        if (fileInput && fileInput.files.length > 0 && fileInput.files[0].name.match(/\.(xlsx|xls|csv)$/i)) {
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                newRecord.excelData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
+                
+                mockDatabase.push(newRecord); 
+                await saveRecordToServer(newRecord); // <-- SEND TO POSTGRES
+                finishSubmission();
+            };
+            reader.readAsArrayBuffer(fileInput.files[0]);
+            
+        // Handle Manual Form Entry
+        } else {
+            const rowData = [
+                getValue('f_no'), getValue('f_fund'), getValue('f_checkDate'), getValue('f_officer'),
+                getValue('f_transType'), getValue('f_soNum'), getValue('f_soDate'), getValue('f_project'),
+                getValue('f_incDates'), getValue('f_amtGranted'), getValue('f_amtLiq'), getValue('f_auditor'),
+                getValue('f_dateAssign'), 
+                "", "", "", "", "", ""
+            ];
+
+            const formattedDate = new Date(dynamicDate).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
+            const headers = ["No.", "Fund", "Check Date", "Accountable Officer", "Transaction Type", "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Amount Granted", "Amount", "Auditor", "Date Assign", "Date Audited", "Audit Result", "Date Forwarded to the Chief", "Reviewed by / Comments", "Reviewed by / Date", "Remarks"];
+            
+            newRecord.excelData = [
+                [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`, ...Array(18).fill("")],
+                [`For the Fiscal Year ${yearStr}`, ...Array(18).fill("")],
+                [`As of ${formattedDate}`, ...Array(18).fill("")],
+                headers, 
+                rowData
+            ];
+            
+            newRecord.mergeCells = { A1: [19, 1], A2: [19, 1], A3: [19, 1] };
+            newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
+            const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
+            columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
+            
+            mockDatabase.push(newRecord); 
+            await saveRecordToServer(newRecord); // <-- SEND TO POSTGRES
+            finishSubmission();
+        }
+    } catch (err) {
+        alert("There was an error submitting the record. Please check your form. Error: " + err.message);
+    }
+}
     
     try {
         const getValue = (id) => document.getElementById(id) ? document.getElementById(id).value : "";
@@ -1127,3 +1219,26 @@ async function deactivateAccount(userId) {
         alert("Connection error.");
     }
 }
+
+async function saveRecordToServer(record) {
+    if (!currentToken) return;
+    try {
+        // We are using the exact same /audit route we fixed earlier
+        const response = await apiCall('/audit', {
+            method: 'POST',
+            body: JSON.stringify(record)
+        });
+        
+        if (response && response.ok) {
+            const savedData = await response.json();
+            // Attach the real database ID to the local record so we can delete/edit it later
+            record.api_id = savedData.id; 
+            console.log("Successfully saved to database!");
+        } else {
+            console.error("Backend rejected the save request.");
+        }
+    } catch (error) {
+        console.error("Failed to connect to backend:", error);
+    }
+}
+
