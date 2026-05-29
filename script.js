@@ -237,8 +237,6 @@ let isFullScreen = false;
 let isMinimized = false;
 let expandedSidebar = { "Reimbursement": true, "Liquidation": true };
 
-let mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
-
 // 30-Day Auto Purge for Recycle Bin
 const now = new Date();
 mockDatabase = mockDatabase.filter(recordData => {
