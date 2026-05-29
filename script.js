@@ -1,5 +1,153 @@
-// ============ API INTEGRATION MODULE ============
-// Enhanced to work with backend API while supporting frontend functionality
+// ============ GLOBAL STATE VARIABLES ============
+let currentUser = null;
+let currentToken = localStorage.getItem('authToken') || null;
+let mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
+const API_BASE_URL = window.location.origin + '/api'; // Use relative URL for backend
+
+// ============ AUTHENTICATION FUNCTIONS ============
+
+// Show main interface and hide auth
+function showMainInterface() {
+    document.getElementById('authContainer').style.display = 'none';
+    document.getElementById('mainContainer').style.display = 'block';
+    renderSidebar();
+}
+
+// Show auth interface and hide main
+function showAuthInterface() {
+    document.getElementById('authContainer').style.display = 'flex';
+    document.getElementById('mainContainer').style.display = 'none';
+}
+
+// Handle login
+async function handleLogin(event) {
+    event.preventDefault();
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    const errorEl = document.getElementById('loginError');
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            errorEl.textContent = data.error || 'Login failed';
+            return;
+        }
+        
+        currentToken = data.token;
+        currentUser = { username: data.username, role: data.role };
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        
+        showMainInterface();
+        document.getElementById('loginForm').reset();
+        errorEl.textContent = '';
+    } catch (error) {
+        console.error('Login error:', error);
+        errorEl.textContent = 'Connection error';
+    }
+}
+
+// Handle registration
+async function handleRegister(event) {
+    event.preventDefault();
+    const username = document.getElementById('registerUsername').value;
+    const password = document.getElementById('registerPassword').value;
+    const role = document.getElementById('registerRole').value;
+    const errorEl = document.getElementById('registerError');
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({ username, password, role })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            errorEl.textContent = data.error || 'Registration failed';
+            return;
+        }
+        
+        errorEl.style.color = 'green';
+        errorEl.textContent = 'Registration successful! Please login.';
+        document.getElementById('registerForm').reset();
+        setTimeout(() => switchToLogin(event), 2000);
+    } catch (error) {
+        console.error('Register error:', error);
+        errorEl.textContent = 'Connection error';
+    }
+}
+
+// Switch between login and register screens
+function switchToRegister(event) {
+    event.preventDefault();
+    document.getElementById('loginScreen').classList.remove('active');
+    document.getElementById('registerScreen').classList.add('active');
+}
+
+function switchToLogin(event) {
+    event.preventDefault();
+    document.getElementById('registerScreen').classList.remove('active');
+    document.getElementById('loginScreen').classList.add('active');
+}
+
+// Handle logout
+function handleLogout() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    currentToken = null;
+    currentUser = null;
+    showAuthInterface();
+}
+
+// Generic API call helper
+async function apiCall(endpoint, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+    };
+    
+    if (currentToken) {
+        headers['Authorization'] = `Bearer ${currentToken}`;
+    }
+    
+    const config = {
+        ...options,
+        headers
+    };
+    
+    try {
+        return await fetch(`${API_BASE_URL}${endpoint}`, config);
+    } catch (error) {
+        console.error('API call error:', error);
+        return null;
+    }
+}
+
+// Initialize authentication on page load
+function initializeAuth() {
+    const token = localStorage.getItem('authToken');
+    const user = localStorage.getItem('currentUser');
+    
+    if (token && user) {
+        currentToken = token;
+        currentUser = JSON.parse(user);
+        showMainInterface();
+    } else {
+        showAuthInterface();
+    }
+}
 
 // Override initial data loading to use API if available
 async function loadRecordsFromAPI() {
@@ -40,6 +188,9 @@ const originalDOMContentLoaded = document.addEventListener.bind(document);
 document.addEventListener = function(event, handler) {
     if (event === 'DOMContentLoaded') {
         return originalDOMContentLoaded(event, async () => {
+            // Initialize authentication UI first
+            initializeAuth();
+            
             // Check if we have auth token
             if (currentToken && currentUser) {
                 // Load from API first
@@ -64,10 +215,11 @@ document.addEventListener = function(event, handler) {
                 return true;
             });
 
-            renderSidebar();
-            searchRecords();
-
-            document.getElementById('searchInput').addEventListener('keyup', searchRecords);
+            if (currentToken && currentUser) {
+                renderSidebar();
+                searchRecords();
+                document.getElementById('searchInput').addEventListener('keyup', searchRecords);
+            }
             
             // Call original handler
             handler();
