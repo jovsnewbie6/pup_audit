@@ -1,6 +1,6 @@
 // ============ GLOBAL STATE VARIABLES ============
-let currentUser = null;
-let currentToken = localStorage.getItem('authToken') || null;
+var currentUser = null;
+var currentToken = localStorage.getItem('authToken') || null;
 let mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
 const API_BASE_URL = window.location.origin + '/api'; 
 
