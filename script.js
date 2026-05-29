@@ -61,8 +61,13 @@ async function handleRegister(event) {
     event.preventDefault();
     const username = document.getElementById('registerUsername').value;
     const password = document.getElementById('registerPassword').value;
-    const role = document.getElementById('registerRole').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
     const errorEl = document.getElementById('registerError');
+    
+    if (password !== confirmPassword) {
+        errorEl.textContent = 'Passwords do not match';
+        return;
+    }
     
     try {
         const response = await fetch(`${API_BASE_URL}/auth/register`, {
@@ -71,7 +76,7 @@ async function handleRegister(event) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${currentToken}`
             },
-            body: JSON.stringify({ username, password, role })
+            body: JSON.stringify({ username, password, role: 'Staff Auditor' })
         });
         
         const data = await response.json();
