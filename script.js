@@ -6,17 +6,14 @@ const API_BASE_URL = window.location.origin + '/api'; // Use relative URL for ba
 
 // ============ AUTHENTICATION FUNCTIONS ============
 
-// Show main interface and hide auth
-function showMainInterface() {
-    document.getElementById('authContainer').style.display = 'none';
-    document.getElementById('mainContainer').style.display = 'block';
-    renderSidebar();
-}
-
-// Show auth interface and hide main
 function showAuthInterface() {
     document.getElementById('authContainer').style.display = 'flex';
-    document.getElementById('mainContainer').style.display = 'none';
+    document.getElementById('appContainer').style.display = 'none';
+}
+
+function showMainInterface() {
+    document.getElementById('authContainer').style.display = 'none';
+    document.getElementById('appContainer').style.display = 'flex';
 }
 
 // Handle login
