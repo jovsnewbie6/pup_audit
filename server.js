@@ -9,15 +9,6 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-const authRoutes = require('./auth');
-const auditRoutes = require('./audit');
-const permissionRoutes = require('./permissions');
-
-app.use('/api/auth', authRoutes);
-app.use('/api/audit', auditRoutes);
-app.use('/api/permissions', permissionRoutes);
-
 app.use(express.static(__dirname));
 
 const initDB = async () => {
@@ -93,21 +84,31 @@ const initDB = async () => {
 
         await client.query('COMMIT');
         console.log('✓ Database initialized successfully.');
+        
+        // Register routes after database is ready
+        const authRoutes = require('./auth');
+        const auditRoutes = require('./audit');
+        const permissionRoutes = require('./permissions');
+
+        app.use('/api/auth', authRoutes);
+        app.use('/api/audit', auditRoutes);
+        app.use('/api/permissions', permissionRoutes);
+
+        app.get('*', (req, res) => {
+            res.sendFile(path.join(__dirname, 'index.html'));
+        });
+
+        const PORT = process.env.PORT || 5000;
+        app.listen(PORT, () => {
+            console.log(`✓ Server running on port ${PORT}`);
+        });
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('✗ Database initialization failed:', err.message);
+        process.exit(1);
     } finally {
         client.release();
     }
 };
 
 initDB();
-
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
