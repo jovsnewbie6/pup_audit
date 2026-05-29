@@ -468,28 +468,37 @@ async function submitNewRecord(event) {
             reader.readAsArrayBuffer(fileInput.files[0]);
             
         } else {
+            // Updated row matching your 20 new columns
             const rowData = [
-                getValue('f_no'), getValue('f_fund'), getValue('f_checkDate'), getValue('f_officer'),
-                getValue('f_transType'), getValue('f_soNum'), getValue('f_soDate'), getValue('f_project'),
-                getValue('f_incDates'), getValue('f_amtGranted'), getValue('f_amtLiq'), getValue('f_auditor'),
-                getValue('f_dateAssign'), 
-                "", "", "", "", "", ""
+                getValue('f_no'), getValue('f_checkDate'), "", getValue('f_officer'), 
+                getValue('f_transType'), getValue('f_soNum'), getValue('f_soDate'), getValue('f_project'), 
+                getValue('f_incDates'), "", getValue('f_amtGranted'), getValue('f_amtLiq'), 
+                getValue('f_auditor'), getValue('f_dateAssign'), "", "", "", "", "", ""
             ];
 
             const formattedDate = new Date(dynamicDate).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
-            const headers = ["No.", "Fund", "Check Date", "Accountable Officer", "Transaction Type", "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Amount Granted", "Amount", "Auditor", "Date Assign", "Date Audited", "Audit Result", "Date Forwarded to the Chief", "Reviewed by / Comments", "Reviewed by / Date", "Remarks"];
+            
+            // Your exact new 20 headers
+            const headers = [
+                "No.", "Check Date", "Check Number", "Accountable Person", "Transaction Type", 
+                "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Location", 
+                "Approved Budget", "Amount", "Auditor", "Date Assigned", "Date Audited", 
+                "Audit Result", "Date forwarded to the Chief", "Reviewed by \\ Comments", 
+                "Reviewed by \\ Dates", "Remarks"
+            ];
             
             newRecord.excelData = [
-                [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`, ...Array(18).fill("")],
-                [`For the Fiscal Year ${yearStr}`, ...Array(18).fill("")],
-                [`As of ${formattedDate}`, ...Array(18).fill("")],
+                [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`, ...Array(19).fill("")],
+                [`For the Fiscal Year ${yearStr}`, ...Array(19).fill("")],
+                [`As of ${formattedDate}`, ...Array(19).fill("")],
                 headers, 
                 rowData
             ];
             
-            newRecord.mergeCells = { A1: [19, 1], A2: [19, 1], A3: [19, 1] };
+            // Extends the styling out to 20 columns (A through T)
+            newRecord.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
             newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
-            const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
+            const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
             columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
             
             mockDatabase.push(newRecord); 
@@ -527,12 +536,12 @@ function submitNewRow(event) {
     try {
         const getValue = (id) => document.getElementById(id) ? document.getElementById(id).value : "";
         
+        // Match the 20 columns
         const rowData = [
-            getValue('r_no'), getValue('r_fund'), getValue('r_checkDate'), getValue('r_officer'),
-            getValue('r_transType'), getValue('r_soNum'), getValue('r_soDate'), getValue('r_project'),
-            getValue('r_incDates'), getValue('r_amtGranted'), getValue('r_amtLiq'), getValue('r_auditor'),
-            getValue('r_dateAssign'), 
-            "", "", "", "", "", ""
+            getValue('r_no'), getValue('r_checkDate'), "", getValue('r_officer'), 
+            getValue('r_transType'), getValue('r_soNum'), getValue('r_soDate'), getValue('r_project'), 
+            getValue('r_incDates'), "", getValue('r_amtGranted'), getValue('r_amtLiq'), 
+            getValue('r_auditor'), getValue('r_dateAssign'), "", "", "", "", "", ""
         ];
 
         const record = mockDatabase.find(item => item.id === currentOpenRecordId);
@@ -599,17 +608,32 @@ function openModal(id) {
     if (!record.excelData || record.excelData.length === 0) {
         const title = `SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`;
         const formattedDate = record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }) : new Date().toLocaleDateString();
-        const headers = ["No.", "Fund", "Check Date", "Accountable Officer", "Transaction Type", "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Amount Granted", "Amount", "Auditor", "Date Assign", "Date Audited", "Audit Result", "Date Forwarded to the Chief", "Reviewed by / Comments", "Reviewed by / Date", "Remarks"];
-        record.excelData = [[title, ...Array(18).fill("")], [`For the Fiscal Year ${new Date().getFullYear()}`, ...Array(18).fill("")], [`As of ${formattedDate}`, ...Array(18).fill("")], headers, Array(19).fill("")];
-        record.mergeCells = { A1: [19, 1], A2: [19, 1], A3: [19, 1] };
+        
+        const headers = [
+            "No.", "Check Date", "Check Number", "Accountable Person", "Transaction Type", 
+            "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Location", 
+            "Approved Budget", "Amount", "Auditor", "Date Assigned", "Date Audited", 
+            "Audit Result", "Date forwarded to the Chief", "Reviewed by \\ Comments", 
+            "Reviewed by \\ Dates", "Remarks"
+        ];
+        
+        record.excelData = [
+            [title, ...Array(19).fill("")], 
+            [`For the Fiscal Year ${new Date().getFullYear()}`, ...Array(19).fill("")], 
+            [`As of ${formattedDate}`, ...Array(19).fill("")], 
+            headers, 
+            Array(20).fill("")
+        ];
+        
+        record.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
         record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
-        const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
+        const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
         columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
     }
 
     currentSpreadsheet = jspreadsheet(container, {
         data: record.excelData,
-        minDimensions: [19, 20], 
+        minDimensions: [20, 20], // Changed to 20 wide
         defaultColWidth: 140, 
         tableOverflow: true, 
         tableWidth: "100%", 
@@ -745,7 +769,7 @@ function importExcel(event) {
         }
         const container = document.getElementById('excelViewer');
         container.innerHTML = ""; if (currentSpreadsheet) currentSpreadsheet.destroy();
-        currentSpreadsheet = jspreadsheet(container, { data: jsonData, minDimensions: [19, 20], defaultColWidth: 140, tableOverflow: true, tableWidth: "100%", tableHeight: "400px", responsive: true });
+        currentSpreadsheet = jspreadsheet(container, { data: jsonData, minDimensions: [20, 20], defaultColWidth: 140, tableOverflow: true, tableWidth: "100%", tableHeight: "400px", responsive: true });
     };
     reader.readAsArrayBuffer(file);
 }
