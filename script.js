@@ -1059,33 +1059,47 @@ async function deactivateAccount(userId) {
     }
 }
 
-async function saveRecordToServer(record) {
+async function loadRecordsFromAPI() {
+    if (!currentUser || !currentToken) return null;
+    
     try {
         const response = await fetch(`${API_BASE_URL}/audit`, {
-            method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${currentToken}`
-            },
-            body: JSON.stringify({
-                record_name: record.name,
-                record_type: record.type,
-                serial_number: record.serial,
-                data: JSON.stringify({
-                    excelData: record.excelData,
-                    style: record.style,
-                    mergeCells: record.mergeCells,
-                    summary: record.summary,
-                    date: record.date,
-                    status: record.status
-                })
-            })
+            }
         });
+        
+        if (!response.ok) return null;
+        
+        const records = await response.json();
+        
+        return records.map(record => {
+            // Safely open the "data" package the database sent us
+            let parsedData = {};
+            if (record.data) {
+                // If it accidentally got double-stringified, this fixes it
+                parsedData = typeof record.data === 'string' ? JSON.parse(record.data) : record.data;
+            }
 
-        if (!response.ok) {
-            console.error('Failed to save record to database');
-        }
-    } catch (err) {
-        console.error('Error connecting to backend:', err);
+            // Map the database columns to exactly what your frontend expects
+            return {
+                id: record.id || Date.now(),
+                serial: record.serial_number || "Unknown Serial",
+                type: record.record_type || "Reimbursement",
+                name: record.record_name || "Untitled Record",
+                date: parsedData.date || (record.created_at ? record.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+                summary: parsedData.summary || `Audit record generated for ${record.record_name}`,
+                status: parsedData.status || record.status || "Pending",
+                logs: [], 
+                excelData: parsedData.excelData || null, // Pulls from inside the data package!
+                style: parsedData.style || {},
+                mergeCells: parsedData.mergeCells || null,
+                deleted: record.is_deleted || false,
+                api_id: record.id
+            };
+        });
+    } catch (error) {
+        console.error('Failed to load records from API:', error);
+        return null;
     }
 }
