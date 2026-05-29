@@ -79,6 +79,8 @@
                 <button onclick="backupDatabase()" class="util-btn">📥 Backup Data</button>
                 <input type="file" id="restoreFile" accept=".json" style="display:none;" onchange="restoreDatabase(event)">
                 <button onclick="document.getElementById('restoreFile').click()" class="util-btn">📤 Restore Data</button>
+                <button onclick="openPasswordModal()" class="util-btn">⚙️ Change Password</button>
+                <button onclick="openSettingsModal()" class="util-btn">⚙️ User Settings</button>
                 <button onclick="handleLogout()" class="util-btn logout-btn">🚪 Logout</button>
             </div>
         </aside>
@@ -261,6 +263,38 @@
             </form>
         </div>
     </div>
+<div id="settingsModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <span class="close-btn" onclick="closeSettingsModal()">&times;</span>
+        <h2>User Settings</h2>
+        
+        <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd;">
+            <p style="margin-bottom: 10px;"><strong>Profile Information</strong></p>
+            <p>Username: <span id="settingsUsername" style="font-weight: bold;"></span></p>
+            <p>Role: <span id="settingsRole" style="font-weight: bold; color: #800000;"></span></p>
+        </div>
+        
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        
+        <h3 style="margin-bottom: 15px;">Change Password</h3>
+        <form id="passwordForm" onsubmit="handlePasswordChange(event)">
+            <div class="auth-form-group">
+                <label>Current Password</label>
+                <input type="password" id="currentPassword" placeholder="Enter current password" required>
+            </div>
+            <div class="auth-form-group">
+                <label>New Password</label>
+                <input type="password" id="newPassword" placeholder="Enter new password" required>
+            </div>
+            <div class="auth-form-group">
+                <label>Confirm New Password</label>
+                <input type="password" id="confirmNewPassword" placeholder="Confirm new password" required>
+            </div>
+            <button type="submit" class="primary-btn" style="width: 100%; margin-top: 10px;">Update Password</button>
+            <p id="passwordError" class="auth-error" style="text-align: center; margin-top: 10px;"></p>
+        </form>
+    </div>
+</div>
 
     </div>
 

@@ -944,3 +944,64 @@ async function handlePasswordChange(event) {
         errorEl.textContent = 'Connection error. Please try again.';
     }
 }
+
+// ============ USER SETTINGS & PASSWORD ============
+
+function openSettingsModal() {
+    document.getElementById('settingsModal').style.display = 'block';
+    if (currentUser) {
+        document.getElementById('settingsUsername').innerText = currentUser.username;
+        document.getElementById('settingsRole').innerText = currentUser.role;
+    }
+}
+
+function closeSettingsModal() {
+    document.getElementById('settingsModal').style.display = 'none';
+    document.getElementById('passwordForm').reset();
+    document.getElementById('passwordError').textContent = '';
+}
+
+window.addEventListener('click', function(event) {
+    if (event.target == document.getElementById('settingsModal')) {
+        closeSettingsModal();
+    }
+});
+
+async function handlePasswordChange(event) {
+    event.preventDefault(); 
+    
+    const oldPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmNewPassword').value;
+    const errorEl = document.getElementById('passwordError');
+    
+    if (newPassword !== confirmPassword) {
+        errorEl.style.color = '#dc2626'; 
+        errorEl.textContent = 'New passwords do not match!';
+        return;
+    }
+    
+    try {
+        const response = await apiCall('/auth/change-password', {
+            method: 'POST',
+            body: JSON.stringify({ oldPassword, newPassword })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            errorEl.style.color = '#059669'; 
+            errorEl.textContent = 'Password updated successfully!';
+            setTimeout(() => {
+                closeSettingsModal();
+            }, 1500);
+        } else {
+            errorEl.style.color = '#dc2626'; 
+            errorEl.textContent = data.error || 'Failed to update password.';
+        }
+    } catch (error) {
+        console.error('Password change error:', error);
+        errorEl.style.color = '#dc2626'; 
+        errorEl.textContent = 'Connection error. Please try again.';
+    }
+}
