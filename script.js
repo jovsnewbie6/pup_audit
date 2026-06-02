@@ -4,6 +4,170 @@ var currentToken = localStorage.getItem('authToken') || null;
 let mockDatabase = JSON.parse(localStorage.getItem('pupDatabase')) || [];
 var API_BASE_URL = window.location.origin + '/api'; 
 
+// ============ WEBSOCKET/SOCKET.IO CONNECTION ============
+let socket = null;
+
+function initializeWebSocket() {
+    socket = io(window.location.origin, {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5
+    });
+
+    socket.on('connect', () => {
+        console.log('✓ Connected to server via WebSocket');
+    });
+
+    socket.on('disconnect', () => {
+        console.log('✗ Disconnected from server');
+    });
+
+    // Listen for new records created by other users
+    socket.on('recordCreated', (newRecord) => {
+        console.log('📨 New record received:', newRecord.name);
+        
+        // Add the new record to mockDatabase if it's not already there
+        const exists = mockDatabase.some(r => r.id === newRecord.id || r.serial === newRecord.serial);
+        if (!exists) {
+            const formattedRecord = {
+                id: newRecord.id,
+                serial: newRecord.serial,
+                type: newRecord.type,
+                name: newRecord.name,
+                date: newRecord.date,
+                status: newRecord.status,
+                summary: `Audit record for ${newRecord.name}`,
+                logs: [],
+                excelData: null,
+                style: {},
+                mergeCells: null,
+                deleted: false,
+                deletedAt: null,
+                api_id: newRecord.id
+            };
+            
+            // Try to parse data if it's a JSON string
+            if (newRecord.data) {
+                try {
+                    const parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
+                    formattedRecord.excelData = parsedData.excelData;
+                    formattedRecord.style = parsedData.style || {};
+                    formattedRecord.mergeCells = parsedData.mergeCells;
+                    formattedRecord.summary = parsedData.summary || formattedRecord.summary;
+                } catch (e) {
+                    console.log('Could not parse data, using defaults');
+                }
+            }
+            
+            mockDatabase.push(formattedRecord);
+            saveToMemory();
+            
+            // Refresh the UI if we're viewing the same record type
+            if (currentTab === newRecord.type) {
+                searchRecords();
+                showNotification(`New ${newRecord.type} record: ${newRecord.name}`);
+            }
+        }
+    });
+
+    // Listen for record updates (status changes, approvals, etc.)
+    socket.on('recordUpdated', (updatedRecord) => {
+        console.log('📨 Record updated:', updatedRecord.name);
+        
+        const recordIndex = mockDatabase.findIndex(r => r.id === updatedRecord.id || r.api_id === updatedRecord.id);
+        if (recordIndex !== -1) {
+            mockDatabase[recordIndex].status = updatedRecord.status;
+            
+            // Update other fields if provided
+            if (updatedRecord.data) {
+                try {
+                    const parsedData = typeof updatedRecord.data === 'string' ? JSON.parse(updatedRecord.data) : updatedRecord.data;
+                    mockDatabase[recordIndex].excelData = parsedData.excelData || mockDatabase[recordIndex].excelData;
+                    mockDatabase[recordIndex].style = parsedData.style || mockDatabase[recordIndex].style;
+                    mockDatabase[recordIndex].mergeCells = parsedData.mergeCells || mockDatabase[recordIndex].mergeCells;
+                    mockDatabase[recordIndex].summary = parsedData.summary || mockDatabase[recordIndex].summary;
+                } catch (e) {
+                    console.log('Could not parse update data');
+                }
+            }
+            
+            saveToMemory();
+            searchRecords();
+            
+            const statusLabel = updatedRecord.status || 'Unknown';
+            showNotification(`${updatedRecord.name} status changed to: ${statusLabel}`);
+        }
+    });
+
+    // Listen for record deletions
+    socket.on('recordDeleted', (deletedRecord) => {
+        console.log('📨 Record deleted:', deletedRecord.id);
+        
+        const recordIndex = mockDatabase.findIndex(r => r.id === deletedRecord.id || r.api_id === deletedRecord.id);
+        if (recordIndex !== -1) {
+            mockDatabase[recordIndex].deleted = true;
+            mockDatabase[recordIndex].deletedAt = new Date().toISOString();
+            saveToMemory();
+            searchRecords();
+            showNotification('A record was moved to the recycle bin');
+        }
+    });
+}
+
+function showNotification(message) {
+    // Create a simple notification at the top of the page
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 5px;
+        z-index: 10000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        animation: slideIn 0.3s ease-in-out;
+    `;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-in-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 4000);
+}
+
+// Add animation styles if they don't exist
+if (!document.querySelector('style[data-websocket-animations]')) {
+    const style = document.createElement('style');
+    style.setAttribute('data-websocket-animations', 'true');
+    style.textContent = `
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 // ============ AUTHENTICATION FUNCTIONS ============
 
 // New function to dynamically fetch users
@@ -45,6 +209,11 @@ function showAuthInterface() {
 function showMainInterface() {
     document.getElementById('authContainer').style.display = 'none';
     document.getElementById('appContainer').style.display = 'flex';
+    
+    // Initialize WebSocket connection when showing main interface
+    if (!socket) {
+        initializeWebSocket();
+    }
     
     const adminBtn = document.getElementById('permissionsBtn');
     if (adminBtn && currentUser && currentUser.role === 'Audit Supervisor') {
