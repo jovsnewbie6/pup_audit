@@ -3,17 +3,6 @@ const router = express.Router();
 const pool = require('./pool');
 const { authenticateToken, requireRole } = require('./middleware');
 
-// io will be set by server.js after initialization
-let io = null;
-
-function setIo(ioInstance) {
-    io = ioInstance;
-}
-
-function getIo() {
-    return io;
-}
-
 const logAction = async (client, recordId, userId, action, comment, oldVal, newVal) => {
     await client.query(
         "INSERT INTO audit_logs (record_id, user_id, action, comment, old_value, new_value) VALUES ($1, $2, $3, $4, $5, $6)",
@@ -27,15 +16,9 @@ router.post('/', authenticateToken, async (req, res) => {
     try {
         await client.query('BEGIN');
         
-        // Handle data field - convert string to object if needed
         let dataForDb = data;
         if (typeof data === 'string') {
-            try {
-                dataForDb = JSON.parse(data);
-            } catch (e) {
-                // If it's not valid JSON, use it as-is
-                dataForDb = data;
-            }
+            try { dataForDb = JSON.parse(data); } catch (e) { dataForDb = data; }
         }
         
         const newRecord = await client.query(
@@ -47,10 +30,11 @@ router.post('/', authenticateToken, async (req, res) => {
         
         const recordData = newRecord.rows[0];
         
-        // Broadcast the new record to all connected clients
-        const ioInstance = getIo();
-        if (ioInstance) {
-            ioInstance.emit('recordCreated', {
+        // Grab the WebSocket safely from the Express app
+        const io = req.app.get('io');
+        if (io) {
+            console.log('📣 Broadcasting NEW RECORD to all browsers!');
+            io.emit('recordCreated', {
                 id: recordData.id,
                 serial: recordData.serial_number,
                 type: recordData.record_type,
@@ -86,9 +70,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         await client.query('BEGIN');
         
         const getOldRecord = await client.query("SELECT * FROM audit_records WHERE id = $1", [req.params.id]);
-        if (getOldRecord.rows.length === 0) {
-            return res.status(404).json({ error: "Record not found" });
-        }
+        if (getOldRecord.rows.length === 0) return res.status(404).json({ error: "Record not found" });
         
         const oldValue = getOldRecord.rows[0];
         const updateQuery = data ? 
@@ -98,15 +80,15 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const params = data ? [status, data, req.params.id] : [status, req.params.id];
         const updatedRecord = await client.query(updateQuery, params);
         
-        // Log the action - convert data to proper format for logging
         const dataToLog = data ? (typeof data === 'string' ? JSON.parse(data) : data) : null;
         await logAction(client, req.params.id, req.user.id, 'UPDATE', comment || `Status changed to ${status}`, oldValue.data, dataToLog);
         await client.query('COMMIT');
         
-        // Broadcast the update to all connected clients
-        const ioInstance = getIo();
-        if (ioInstance) {
-            ioInstance.emit('recordUpdated', {
+        // Grab the WebSocket safely from the Express app
+        const io = req.app.get('io');
+        if (io) {
+            console.log('📣 Broadcasting UPDATE to all browsers!');
+            io.emit('recordUpdated', {
                 id: updatedRecord.rows[0].id,
                 serial: updatedRecord.rows[0].serial_number,
                 type: updatedRecord.rows[0].record_type,
@@ -136,13 +118,8 @@ router.delete('/:id', authenticateToken, requireRole('Audit Supervisor'), async 
         await logAction(client, req.params.id, req.user.id, 'DELETE', 'Moved to bin', null, null);
         await client.query('COMMIT');
         
-        // Broadcast the deletion to all connected clients
-        const ioInstance = getIo();
-        if (ioInstance) {
-            ioInstance.emit('recordDeleted', {
-                id: req.params.id
-            });
-        }
+        const io = req.app.get('io');
+        if (io) io.emit('recordDeleted', { id: req.params.id });
         
         res.json({ message: "Record moved to bin" });
     } catch (err) {
@@ -158,11 +135,8 @@ router.get('/:id/logs', authenticateToken, async (req, res) => {
     try {
         const logs = await pool.query(
             `SELECT l.id, l.action, l.comment, l.created_at, u.username, l.old_value, l.new_value 
-             FROM audit_logs l
-             LEFT JOIN users u ON l.user_id = u.id
-             WHERE l.record_id = $1
-             ORDER BY l.created_at ASC`,
-            [req.params.id]
+             FROM audit_logs l LEFT JOIN users u ON l.user_id = u.id
+             WHERE l.record_id = $1 ORDER BY l.created_at ASC`, [req.params.id]
         );
         res.json(logs.rows);
     } catch (err) {
@@ -175,32 +149,23 @@ router.post('/:id/logs', authenticateToken, async (req, res) => {
     const { comment } = req.body;
     const client = await pool.connect();
     try {
-        if (!comment || !comment.trim()) {
-            return res.status(400).json({ error: 'Comment cannot be empty' });
-        }
+        if (!comment || !comment.trim()) return res.status(400).json({ error: 'Comment cannot be empty' });
 
-        // Verify record exists
         const recordExists = await client.query('SELECT id FROM audit_records WHERE id = $1', [req.params.id]);
-        if (recordExists.rows.length === 0) {
-            return res.status(404).json({ error: 'Record not found' });
-        }
+        if (recordExists.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
 
-        // Add the log
         const logResult = await client.query(
             `INSERT INTO audit_logs (record_id, user_id, action, comment, created_at) 
-             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) 
-             RETURNING id, action, comment, created_at`,
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING id, action, comment, created_at`,
             [req.params.id, req.user.id, 'COMMENT', comment]
         );
 
-        // Get username for broadcast
         const userResult = await client.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
         const username = userResult.rows[0]?.username || 'Unknown User';
 
-        // Broadcast new comment to all connected clients
-        const ioInstance = getIo();
-        if (ioInstance) {
-            ioInstance.emit('logAdded', {
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('logAdded', {
                 recordId: parseInt(req.params.id),
                 log: {
                     id: logResult.rows[0].id,
@@ -221,4 +186,3 @@ router.post('/:id/logs', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
-module.exports.setIo = setIo;
