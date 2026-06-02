@@ -210,6 +210,20 @@ function showMainInterface() {
     document.getElementById('authContainer').style.display = 'none';
     document.getElementById('appContainer').style.display = 'flex';
     
+    // Update user info in header
+    if (currentUser) {
+        document.getElementById('userName').innerText = currentUser.username;
+        document.getElementById('userRole').innerText = currentUser.role;
+        
+        // Update role badge color based on role
+        const roleEl = document.getElementById('userRole');
+        if (currentUser.role === 'Audit Supervisor') {
+            roleEl.className = 'role-badge role-supervisor';
+        } else {
+            roleEl.className = 'role-badge role-auditor';
+        }
+    }
+    
     // Initialize WebSocket connection when showing main interface
     if (!socket) {
         initializeWebSocket();
@@ -1308,7 +1322,12 @@ async function saveRecordToServer(record) {
             })
         });
 
-        if (!response.ok) {
+        if (response.ok) {
+            const savedRecord = await response.json();
+            // Set the api_id so future updates work
+            record.api_id = savedRecord.id;
+            console.log('✓ Record saved to server with api_id:', savedRecord.id);
+        } else {
             console.error('Failed to save record to database');
         }
     } catch (err) {
@@ -1318,7 +1337,18 @@ async function saveRecordToServer(record) {
 
 // ============ UPDATE RECORD ON SERVER (For Real-Time Sync) ============
 async function updateRecordOnServer(record, comment = '') {
-    if (!record || !record.api_id || !currentToken) return;
+    if (!record) return;
+    
+    // If record doesn't have api_id yet, it hasn't been saved to server
+    // In that case, just save locally - it will sync when created
+    if (!record.api_id && !currentToken) return;
+    
+    // If no api_id, we can't update yet - the record needs to be created first
+    if (!record.api_id) {
+        console.log('Record not yet synced to server, storing locally...');
+        saveToMemory();
+        return;
+    }
 
     try {
         const response = await fetch(`${API_BASE_URL}/audit/${record.api_id}`, {
@@ -1340,7 +1370,9 @@ async function updateRecordOnServer(record, comment = '') {
             })
         });
 
-        if (!response.ok) {
+        if (response.ok) {
+            console.log('✓ Record updated on server:', record.api_id);
+        } else {
             console.error('Failed to update record on server');
         }
     } catch (err) {
