@@ -40,7 +40,8 @@ router.post('/', authenticateToken, async (req, res) => {
                 type: recordData.record_type,
                 name: recordData.record_name,
                 status: recordData.status,
-                date: recordData.created_at ? recordData.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+                // THE FIX: Safely format the date object
+                date: recordData.created_at ? new Date(recordData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                 data: recordData.data
             });
         }
@@ -94,7 +95,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 type: updatedRecord.rows[0].record_type,
                 name: updatedRecord.rows[0].record_name,
                 status: updatedRecord.rows[0].status,
-                date: updatedRecord.rows[0].created_at ? updatedRecord.rows[0].created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+                // THE FIX: Safely format the date object
+                date: updatedRecord.rows[0].created_at ? new Date(updatedRecord.rows[0].created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                 data: updatedRecord.rows[0].data,
                 comment: comment
             });
