@@ -107,7 +107,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
         } else {
             console.error('⚠ Socket.io instance not available on req.app!');
         }
-        }
         
         res.json(updatedRecord.rows[0]);
     } catch (err) {
