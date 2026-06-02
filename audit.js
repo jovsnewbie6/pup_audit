@@ -2,14 +2,16 @@ const express = require('express');
 const router = express.Router();
 const pool = require('./pool');
 const { authenticateToken, requireRole } = require('./middleware');
-let io; 
 
-// Get io instance from server (will be set when server.js loads)
-try {
-    const serverModule = require('./server');
-    io = serverModule.io;
-} catch (err) {
-    console.warn('io not yet initialized, will be available during runtime');
+// io will be set by server.js after initialization
+let io = null;
+
+function setIo(ioInstance) {
+    io = ioInstance;
+}
+
+function getIo() {
+    return io;
 }
 
 const logAction = async (client, recordId, userId, action, comment, oldVal, newVal) => {
@@ -46,8 +48,9 @@ router.post('/', authenticateToken, async (req, res) => {
         const recordData = newRecord.rows[0];
         
         // Broadcast the new record to all connected clients
-        if (io) {
-            io.emit('recordCreated', {
+        const ioInstance = getIo();
+        if (ioInstance) {
+            ioInstance.emit('recordCreated', {
                 id: recordData.id,
                 serial: recordData.serial_number,
                 type: recordData.record_type,
@@ -101,8 +104,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
         await client.query('COMMIT');
         
         // Broadcast the update to all connected clients
-        if (io) {
-            io.emit('recordUpdated', {
+        const ioInstance = getIo();
+        if (ioInstance) {
+            ioInstance.emit('recordUpdated', {
                 id: updatedRecord.rows[0].id,
                 serial: updatedRecord.rows[0].serial_number,
                 type: updatedRecord.rows[0].record_type,
@@ -133,8 +137,9 @@ router.delete('/:id', authenticateToken, requireRole('Audit Supervisor'), async 
         await client.query('COMMIT');
         
         // Broadcast the deletion to all connected clients
-        if (io) {
-            io.emit('recordDeleted', {
+        const ioInstance = getIo();
+        if (ioInstance) {
+            ioInstance.emit('recordDeleted', {
                 id: req.params.id
             });
         }
@@ -149,3 +154,4 @@ router.delete('/:id', authenticateToken, requireRole('Audit Supervisor'), async 
 });
 
 module.exports = router;
+module.exports.setIo = setIo;

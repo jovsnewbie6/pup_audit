@@ -110,6 +110,9 @@ const initDB = async () => {
         const auditRoutes = require('./audit');
         const permissionRoutes = require('./permissions');
 
+        // Set io instance for audit routes to use for broadcasting
+        auditRoutes.setIo(io);
+
         app.use('/api/auth', authRoutes);
         app.use('/api/audit', auditRoutes);
         app.use('/api/permissions', permissionRoutes);

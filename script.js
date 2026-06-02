@@ -113,6 +113,13 @@ function initializeWebSocket() {
             showNotification('A record was moved to the recycle bin');
         }
     });
+
+    // Auto-refresh records every 5 seconds to show updates from other users
+    setInterval(() => {
+        if (currentTab && document.getElementById('resultsContainer')) {
+            searchRecords();
+        }
+    }, 5000);
 }
 
 function showNotification(message) {
@@ -864,6 +871,18 @@ function openModal(id) {
     });
 }
 
+function toggleAuditLog() {
+    const logHistory = document.getElementById('logHistory');
+    const logInput = document.querySelector('.log-input-area');
+    const collapseBtn = document.getElementById('auditLogCollapseBtn');
+    
+    if (logHistory && logInput && collapseBtn) {
+        logHistory.classList.toggle('collapsed');
+        logInput.classList.toggle('collapsed');
+        collapseBtn.classList.toggle('collapsed');
+    }
+}
+
 function closeModal() {
     if (currentSpreadsheet && currentOpenRecordId) {
         const record = mockDatabase.find(item => item.id === currentOpenRecordId);
@@ -1326,28 +1345,44 @@ async function saveRecordToServer(record) {
             const savedRecord = await response.json();
             // Set the api_id so future updates work
             record.api_id = savedRecord.id;
+            // Update in mockDatabase to ensure the api_id is persisted
+            const recordIndex = mockDatabase.findIndex(r => r.serial === record.serial);
+            if (recordIndex !== -1) {
+                mockDatabase[recordIndex].api_id = savedRecord.id;
+                saveToMemory();
+            }
             console.log('✓ Record saved to server with api_id:', savedRecord.id);
+            return true;
         } else {
             console.error('Failed to save record to database');
+            return false;
         }
     } catch (err) {
         console.error('Error connecting to backend:', err);
+        return false;
     }
 }
 
 // ============ UPDATE RECORD ON SERVER (For Real-Time Sync) ============
 async function updateRecordOnServer(record, comment = '') {
-    if (!record) return;
+    if (!record) return false;
     
-    // If record doesn't have api_id yet, it hasn't been saved to server
-    // In that case, just save locally - it will sync when created
-    if (!record.api_id && !currentToken) return;
-    
-    // If no api_id, we can't update yet - the record needs to be created first
+    // If record doesn't have api_id yet, try to create it first
     if (!record.api_id) {
-        console.log('Record not yet synced to server, storing locally...');
-        saveToMemory();
-        return;
+        if (!currentToken) {
+            console.log('Not logged in, storing changes locally...');
+            saveToMemory();
+            return false;
+        }
+        
+        // Try to save the record to server first
+        console.log('Record not yet synced, creating on server first...');
+        const created = await saveRecordToServer(record);
+        if (!created) {
+            console.log('Failed to create record on server, saving locally...');
+            saveToMemory();
+            return false;
+        }
     }
 
     try {
@@ -1372,10 +1407,16 @@ async function updateRecordOnServer(record, comment = '') {
 
         if (response.ok) {
             console.log('✓ Record updated on server:', record.api_id);
+            saveToMemory();
+            return true;
         } else {
-            console.error('Failed to update record on server');
+            console.error('Failed to update record on server:', response.status);
+            saveToMemory();
+            return false;
         }
     } catch (err) {
         console.error('Error updating record on server:', err);
+        saveToMemory();
+        return false;
     }
 }

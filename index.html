@@ -138,7 +138,10 @@
             <div class="excel-container" id="excelViewer"><p class="placeholder-text" style="padding: 20px;">Loading...</p></div>
 
             <div class="audit-log-section">
-                <h3>Audit Log & Comments</h3>
+                <div class="audit-log-header">
+                    <h3>Audit Log & Comments</h3>
+                    <button class="collapse-btn" id="auditLogCollapseBtn" onclick="toggleAuditLog()" title="Collapse/Expand">▼</button>
+                </div>
                 <div class="log-history" id="logHistory"></div>
                 <div class="log-input-area">
                     <input type="text" id="newLogInput" placeholder="Add a note or explain a status change...">
