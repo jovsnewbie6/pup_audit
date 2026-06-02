@@ -109,17 +109,33 @@ function initializeWebSocket() {
         }
     });
 
-    // Listen for record deletions
+    // Listen for record deletions from other users
     socket.on('recordDeleted', (deletedRecord) => {
-        console.log('📨 Record deleted:', deletedRecord.id);
+        console.log('📨 Record deleted on server:', deletedRecord.id || deletedRecord);
         
-        const recordIndex = mockDatabase.findIndex(r => r.id === deletedRecord.id || r.api_id === deletedRecord.id);
+        // Match by either id or api_id
+        const recordIndex = mockDatabase.findIndex(r => 
+            r.id === deletedRecord.id || 
+            r.api_id === deletedRecord.id ||
+            (deletedRecord.api_id && r.api_id === deletedRecord.api_id)
+        );
+        
         if (recordIndex !== -1) {
+            console.log('✓ Found record in local database, marking as deleted');
             mockDatabase[recordIndex].deleted = true;
             mockDatabase[recordIndex].deletedAt = new Date().toISOString();
             saveToMemory();
-            searchRecords();
+            
+            // Refresh the view
+            if (currentTab === mockDatabase[recordIndex].type) {
+                searchRecords();
+            }
+            
             showNotification('A record was moved to the recycle bin');
+        } else {
+            console.log('⚠ Record not found in local database, refreshing view');
+            // Refresh the current view
+            searchRecords();
         }
     });
 

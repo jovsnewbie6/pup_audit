@@ -128,8 +128,13 @@ router.delete('/:id', authenticateToken, requireRole('Audit Supervisor'), async 
         
         const io = req.app.get('io');
         if (io) {
-            console.log('📣 Broadcasting DELETE to all browsers!');
-            io.emit('recordDeleted', { id: req.params.id });
+            console.log('📣 Broadcasting DELETE to all browsers! Record ID:', record.rows[0].id);
+            // Broadcast to ALL users including sender
+            io.emit('recordDeleted', { 
+                id: record.rows[0].id,
+                api_id: record.rows[0].id,
+                serial: record.rows[0].serial_number
+            });
         } else {
             console.error('⚠ Socket.io instance not available on req.app!');
         }
@@ -137,6 +142,7 @@ router.delete('/:id', authenticateToken, requireRole('Audit Supervisor'), async 
         res.json({ message: "Record moved to bin" });
     } catch (err) {
         await client.query('ROLLBACK');
+        console.error('Delete error:', err);
         res.status(500).json({ error: err.message });
     } finally {
         client.release();

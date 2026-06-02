@@ -42,6 +42,8 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     const { oldPassword, newPassword } = req.body;
     try {
         const userResult = await pool.query("SELECT password_hash FROM users WHERE id = $1", [req.user.id]);
+        if (!userResult.rows[0]) return res.status(404).json({ error: 'User not found' });
+        
         const validPassword = await bcrypt.compare(oldPassword, userResult.rows[0].password_hash);
         if (!validPassword) return res.status(400).json({ error: 'Invalid old password' });
 
