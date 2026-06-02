@@ -22,7 +22,26 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// ============ START SERVER AND WEBSOCKET IMMEDIATELY ============
+// ============ REGISTER ROUTES FIRST ============
+const authRoutes = require('./auth');
+const auditRoutes = require('./audit');
+const permissionRoutes = require('./permissions');
+
+app.use('/api/auth', authRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/permissions', permissionRoutes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('✗ Server error:', err.message);
+    res.status(500).json({ error: 'Internal server error: ' + err.message });
+});
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ============ START SERVER AND WEBSOCKET ============
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`✓ Server running on port ${PORT}`);
@@ -131,25 +150,6 @@ const initDB = async () => {
         }
 
         console.log('✓ Database initialized successfully.');
-        
-        // Register routes after database is ready
-        const authRoutes = require('./auth');
-        const auditRoutes = require('./audit');
-        const permissionRoutes = require('./permissions');
-
-        app.use('/api/auth', authRoutes);
-        app.use('/api/audit', auditRoutes);
-        app.use('/api/permissions', permissionRoutes);
-
-        // Error handling middleware
-        app.use((err, req, res, next) => {
-            console.error('✗ Server error:', err.message);
-            res.status(500).json({ error: 'Internal server error: ' + err.message });
-        });
-
-        app.get('*', (req, res) => {
-            res.sendFile(path.join(__dirname, 'index.html'));
-        });
     } catch (err) {
         console.error('✗ Database initialization failed:', err.message);
     } finally {
