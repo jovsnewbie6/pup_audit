@@ -114,6 +114,25 @@ function initializeWebSocket() {
         }
     });
 
+    // Listen for new audit logs/comments added by other users
+    socket.on('logAdded', (event) => {
+        console.log('📨 New audit log received:', event.log.comment);
+        
+        // If the modal is open and it's the same record, add the log to the display
+        if (currentOpenRecordId === event.recordId) {
+            const logContainer = document.getElementById('logHistory');
+            if (logContainer) {
+                const div = document.createElement('div');
+                div.className = 'log-entry';
+                const logDate = new Date(event.log.created_at).toLocaleString();
+                div.innerHTML = `<span class="timestamp">${logDate} - ${event.log.username}</span><span class="message">${event.log.comment}</span>`;
+                logContainer.appendChild(div);
+                logContainer.scrollTop = logContainer.scrollHeight;
+                showNotification(`New comment on ${mockDatabase.find(r => r.id === event.recordId)?.name || 'record'}`);
+            }
+        }
+    });
+
     // Auto-refresh records every 5 seconds to show updates from other users
     setInterval(() => {
         if (currentTab && document.getElementById('resultsContainer')) {
@@ -813,6 +832,13 @@ function openModal(id) {
     document.getElementById('modalTitle').innerText = `[${record.serial}] Audit Worksheet: ${record.name}`;
     document.getElementById('recordStatusDropdown').value = record.status || "Pending";
     
+    // Fetch logs from server if record has api_id
+    if (record.api_id) {
+        fetchLogsFromServer(id, record.api_id);
+    } else {
+        renderLogs(record.logs);
+    }
+    
     const deleteBtn = document.querySelector('.delete-btn');
     if (deleteBtn) {
         if (canDeleteRecords()) {
@@ -821,8 +847,6 @@ function openModal(id) {
             deleteBtn.style.display = 'none';
         }
     }
-    
-    renderLogs(record.logs);
     
     const container = document.getElementById('excelViewer');
     container.innerHTML = "";
@@ -923,10 +947,40 @@ function renderLogs(logs) {
     logs.forEach(log => {
         const div = document.createElement('div');
         div.className = `log-entry ${log.message.startsWith("System:") ? 'system-log' : ''}`;
-        div.innerHTML = `<span class="timestamp">${log.date}</span><span class="message">${log.message}</span>`;
+        const logDate = log.date || log.created_at;
+        const displayDate = typeof logDate === 'string' ? new Date(logDate).toLocaleString() : logDate;
+        const username = log.username ? ` - ${log.username}` : '';
+        div.innerHTML = `<span class="timestamp">${displayDate}${username}</span><span class="message">${log.message || log.comment}</span>`;
         container.appendChild(div);
     });
     container.scrollTop = container.scrollHeight;
+}
+
+async function fetchLogsFromServer(recordId, recordApiId) {
+    if (!recordApiId || !currentToken) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/audit/${recordApiId}/logs`, {
+            headers: {
+                'Authorization': `Bearer ${currentToken}`
+            }
+        });
+
+        if (response.ok) {
+            const logs = await response.json();
+            const record = mockDatabase.find(r => r.id === recordId);
+            if (record) {
+                record.logs = logs;
+                if (currentOpenRecordId === recordId) {
+                    renderLogs(record.logs);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Error fetching logs:', err);
+    }
 }
 
 function addAuditLog() {
@@ -937,14 +991,57 @@ function addAuditLog() {
     if (record) {
         if (!record.logs) record.logs = [];
         const comment = input.value.trim();
-        record.logs.push({ date: new Date().toLocaleString(), message: comment });
-        saveToMemory(); 
         
-        // Sync comment to server for real-time broadcast
-        updateRecordOnServer(record, comment);
+        // Clear input immediately for better UX
+        input.value = "";
+        input.disabled = true;
         
-        renderLogs(record.logs); 
-        input.value = ""; 
+        // Send comment to server
+        sendCommentToServer(record.api_id, comment, (success) => {
+            input.disabled = false;
+            if (success) {
+                // Comment was sent and will be broadcast by socket.io
+                console.log('✓ Comment sent to server');
+            } else {
+                // If server fails, add locally but mark as pending
+                record.logs.push({ 
+                    date: new Date().toLocaleString(), 
+                    message: `[PENDING] ${comment}`,
+                    pending: true
+                });
+                renderLogs(record.logs);
+                showNotification('Comment saved locally (pending sync)');
+            }
+        });
+    }
+}
+
+async function sendCommentToServer(recordApiId, comment, callback) {
+    if (!recordApiId || !currentToken) {
+        callback(false);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/audit/${recordApiId}/logs`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({ comment })
+        });
+
+        if (response.ok) {
+            console.log('✓ Comment posted to server');
+            callback(true);
+        } else {
+            console.error('Failed to post comment to server');
+            callback(false);
+        }
+    } catch (err) {
+        console.error('Error posting comment:', err);
+        callback(false);
     }
 }
 

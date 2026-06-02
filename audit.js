@@ -153,5 +153,72 @@ router.delete('/:id', authenticateToken, requireRole('Audit Supervisor'), async 
     }
 });
 
+// ============ GET AUDIT LOGS FOR A RECORD ============
+router.get('/:id/logs', authenticateToken, async (req, res) => {
+    try {
+        const logs = await pool.query(
+            `SELECT l.id, l.action, l.comment, l.created_at, u.username, l.old_value, l.new_value 
+             FROM audit_logs l
+             LEFT JOIN users u ON l.user_id = u.id
+             WHERE l.record_id = $1
+             ORDER BY l.created_at ASC`,
+            [req.params.id]
+        );
+        res.json(logs.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============ ADD COMMENT/LOG TO A RECORD ============
+router.post('/:id/logs', authenticateToken, async (req, res) => {
+    const { comment } = req.body;
+    const client = await pool.connect();
+    try {
+        if (!comment || !comment.trim()) {
+            return res.status(400).json({ error: 'Comment cannot be empty' });
+        }
+
+        // Verify record exists
+        const recordExists = await client.query('SELECT id FROM audit_records WHERE id = $1', [req.params.id]);
+        if (recordExists.rows.length === 0) {
+            return res.status(404).json({ error: 'Record not found' });
+        }
+
+        // Add the log
+        const logResult = await client.query(
+            `INSERT INTO audit_logs (record_id, user_id, action, comment, created_at) 
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) 
+             RETURNING id, action, comment, created_at`,
+            [req.params.id, req.user.id, 'COMMENT', comment]
+        );
+
+        // Get username for broadcast
+        const userResult = await client.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
+        const username = userResult.rows[0]?.username || 'Unknown User';
+
+        // Broadcast new comment to all connected clients
+        const ioInstance = getIo();
+        if (ioInstance) {
+            ioInstance.emit('logAdded', {
+                recordId: parseInt(req.params.id),
+                log: {
+                    id: logResult.rows[0].id,
+                    action: logResult.rows[0].action,
+                    comment: logResult.rows[0].comment,
+                    created_at: logResult.rows[0].created_at,
+                    username: username
+                }
+            });
+        }
+
+        res.json(logResult.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
 module.exports = router;
 module.exports.setIo = setIo;
