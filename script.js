@@ -858,6 +858,9 @@ function closeModal() {
             record.headers = currentSpreadsheet.getHeaders().split(',');
             record.style = currentSpreadsheet.getStyle();
             record.mergeCells = currentSpreadsheet.getConfig().mergeCells || {};
+            
+            // Sync Excel data changes to server for real-time broadcast
+            updateRecordOnServer(record, 'Excel data updated');
         }
     }
     saveToMemory();
@@ -871,7 +874,9 @@ function changeRecordStatus(newStatus) {
         record.status = newStatus;
         if (!record.logs) record.logs = [];
         record.logs.push({ date: new Date().toLocaleString(), message: `System: Status changed to ${newStatus}` });
-        saveToMemory(); 
+        saveToMemory();
+        // Sync status change to server for real-time broadcast
+        updateRecordOnServer(record, `Status changed to ${newStatus}`);
         searchRecords(); 
         renderLogs(record.logs); 
     }
@@ -898,8 +903,15 @@ function addAuditLog() {
     const record = mockDatabase.find(item => item.id === currentOpenRecordId);
     if (record) {
         if (!record.logs) record.logs = [];
-        record.logs.push({ date: new Date().toLocaleString(), message: input.value.trim() });
-        saveToMemory(); renderLogs(record.logs); input.value = ""; 
+        const comment = input.value.trim();
+        record.logs.push({ date: new Date().toLocaleString(), message: comment });
+        saveToMemory(); 
+        
+        // Sync comment to server for real-time broadcast
+        updateRecordOnServer(record, comment);
+        
+        renderLogs(record.logs); 
+        input.value = ""; 
     }
 }
 
@@ -1301,5 +1313,37 @@ async function saveRecordToServer(record) {
         }
     } catch (err) {
         console.error('Error connecting to backend:', err);
+    }
+}
+
+// ============ UPDATE RECORD ON SERVER (For Real-Time Sync) ============
+async function updateRecordOnServer(record, comment = '') {
+    if (!record || !record.api_id || !currentToken) return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/audit/${record.api_id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({
+                status: record.status,
+                data: {
+                    excelData: record.excelData,
+                    style: record.style,
+                    mergeCells: record.mergeCells,
+                    summary: record.summary,
+                    date: record.date
+                },
+                comment: comment
+            })
+        });
+
+        if (!response.ok) {
+            console.error('Failed to update record on server');
+        }
+    } catch (err) {
+        console.error('Error updating record on server:', err);
     }
 }
