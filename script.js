@@ -704,7 +704,15 @@ async function submitNewRecord(event) {
                 newRecord.excelData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
                 
                 mockDatabase.push(newRecord); 
-                await saveRecordToServer(newRecord); 
+                const saved = await saveRecordToServer(newRecord);
+                if (saved) {
+                    // Refresh from server immediately to ensure new record appears without waiting for socket broadcast
+                    const freshRecords = await loadRecordsFromAPI();
+                    if (freshRecords) {
+                        mockDatabase = freshRecords;
+                        saveToMemory();
+                    }
+                }
                 finishSubmission();
             };
             reader.readAsArrayBuffer(fileInput.files[0]);
@@ -744,7 +752,15 @@ async function submitNewRecord(event) {
             columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
             
             mockDatabase.push(newRecord); 
-            await saveRecordToServer(newRecord); 
+            const saved = await saveRecordToServer(newRecord);
+            if (saved) {
+                // Refresh from server immediately to ensure new record appears without waiting for socket broadcast
+                const freshRecords = await loadRecordsFromAPI();
+                if (freshRecords) {
+                    mockDatabase = freshRecords;
+                    saveToMemory();
+                }
+            }
             finishSubmission();
         }
     } catch (err) {
