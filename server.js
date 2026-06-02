@@ -45,6 +45,16 @@ const initDB = async () => {
 
     const client = await pool.connect();
     try {
+        // Check if tables already exist
+        const tableCheck = await client.query(
+            "SELECT to_regclass('public.users')"
+        );
+        
+        if (tableCheck.rows[0].to_regclass !== null) {
+            console.log('✓ Database tables already exist, skipping initialization');
+        } else {
+            console.log('Creating database tables...');
+            
         // Drop tables in correct order (dependencies first)
         try { await client.query('DROP TABLE IF EXISTS audit_logs CASCADE;'); } catch (e) { }
         try { await client.query('DROP TABLE IF EXISTS audit_records CASCADE;'); } catch (e) { }
@@ -106,6 +116,7 @@ const initDB = async () => {
                 UNIQUE (role, action)
             );
         `);
+        }
 
         // Create default admin user
         const adminCheck = await client.query("SELECT * FROM users WHERE username = 'admin'");
