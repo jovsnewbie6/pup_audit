@@ -114,6 +114,12 @@ const initDB = async () => {
         app.use('/api/audit', auditRoutes);
         app.use('/api/permissions', permissionRoutes);
 
+        // Error handling middleware
+        app.use((err, req, res, next) => {
+            console.error('✗ Server error:', err.message);
+            res.status(500).json({ error: 'Internal server error: ' + err.message });
+        });
+
         app.get('*', (req, res) => {
             res.sendFile(path.join(__dirname, 'index.html'));
         });
@@ -146,6 +152,16 @@ pool.query('SELECT NOW()', (err, res) => {
         console.log('✓ Database connected:', res.rows[0]);
         initDB();
     }
+});
+
+// Global error handlers
+process.on('uncaughtException', (err) => {
+    console.error('✗ Uncaught Exception:', err);
+    console.error('Stack:', err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('✗ Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Export io for other modules to use for broadcasting

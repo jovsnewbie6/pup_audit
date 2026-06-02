@@ -1311,14 +1311,14 @@ async function saveRecordToServer(record) {
                 record_name: record.name,
                 record_type: record.type,
                 serial_number: record.serial,
-                data: JSON.stringify({
+                data: {
                     excelData: record.excelData,
                     style: record.style,
                     mergeCells: record.mergeCells,
                     summary: record.summary,
                     date: record.date,
                     status: record.status
-                })
+                }
             })
         });
 

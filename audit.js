@@ -24,11 +24,23 @@ router.post('/', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        
+        // Handle data field - convert string to object if needed
+        let dataForDb = data;
+        if (typeof data === 'string') {
+            try {
+                dataForDb = JSON.parse(data);
+            } catch (e) {
+                // If it's not valid JSON, use it as-is
+                dataForDb = data;
+            }
+        }
+        
         const newRecord = await client.query(
             "INSERT INTO audit_records (record_name, record_type, serial_number, data, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [record_name, record_type, serial_number, data, req.user.id]
+            [record_name, record_type, serial_number, dataForDb, req.user.id]
         );
-        await logAction(client, newRecord.rows[0].id, req.user.id, 'CREATE', 'Initial record creation', null, data);
+        await logAction(client, newRecord.rows[0].id, req.user.id, 'CREATE', 'Initial record creation', null, dataForDb);
         await client.query('COMMIT');
         
         const recordData = newRecord.rows[0];
@@ -80,11 +92,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
             "UPDATE audit_records SET status = $1, data = $2 WHERE id = $3 RETURNING *" :
             "UPDATE audit_records SET status = $1 WHERE id = $2 RETURNING *";
         
-        const params = data ? [status, JSON.stringify(data), req.params.id] : [status, req.params.id];
+        const params = data ? [status, data, req.params.id] : [status, req.params.id];
         const updatedRecord = await client.query(updateQuery, params);
         
-        // Log the action
-        await logAction(client, req.params.id, req.user.id, 'UPDATE', comment || `Status changed to ${status}`, oldValue.data, data);
+        // Log the action - convert data to proper format for logging
+        const dataToLog = data ? (typeof data === 'string' ? JSON.parse(data) : data) : null;
+        await logAction(client, req.params.id, req.user.id, 'UPDATE', comment || `Status changed to ${status}`, oldValue.data, dataToLog);
         await client.query('COMMIT');
         
         // Broadcast the update to all connected clients
