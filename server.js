@@ -22,6 +22,20 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
+// ============ START SERVER AND WEBSOCKET IMMEDIATELY ============
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+    console.log(`✓ Server running on port ${PORT}`);
+});
+
+io.on('connection', (socket) => {
+    console.log('✓ Client connected:', socket.id);
+
+    socket.on('disconnect', () => {
+        console.log('✗ Client disconnected:', socket.id);
+    });
+});
+
 const initDB = async () => {
     if (!pool || typeof pool.connect !== 'function') {
         console.error('✗ Database pool not initialized');
@@ -124,20 +138,6 @@ const initDB = async () => {
 
         app.get('*', (req, res) => {
             res.sendFile(path.join(__dirname, 'index.html'));
-        });
-
-        // ============ WEBSOCKET CONNECTION ============
-        io.on('connection', (socket) => {
-            console.log('✓ Client connected:', socket.id);
-
-            socket.on('disconnect', () => {
-                console.log('✗ Client disconnected:', socket.id);
-            });
-        });
-
-        const PORT = process.env.PORT || 5000;
-        server.listen(PORT, () => {
-            console.log(`✓ Server running on port ${PORT}`);
         });
     } catch (err) {
         console.error('✗ Database initialization failed:', err.message);

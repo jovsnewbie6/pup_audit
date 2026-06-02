@@ -34,6 +34,7 @@ router.post('/', authenticateToken, async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             console.log('📣 Broadcasting NEW RECORD to all browsers!');
+            console.log('Socket.io instance available. Emitting recordCreated event.');
             io.emit('recordCreated', {
                 id: recordData.id,
                 serial: recordData.serial_number,
@@ -44,6 +45,8 @@ router.post('/', authenticateToken, async (req, res) => {
                 date: recordData.created_at ? new Date(recordData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                 data: recordData.data
             });
+        } else {
+            console.error('⚠ Socket.io instance not available on req.app!');
         }
         
         res.json(recordData);
@@ -89,6 +92,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             console.log('📣 Broadcasting UPDATE to all browsers!');
+            console.log('Socket.io instance available. Emitting recordUpdated event.');
             io.emit('recordUpdated', {
                 id: updatedRecord.rows[0].id,
                 serial: updatedRecord.rows[0].serial_number,
@@ -100,6 +104,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 data: updatedRecord.rows[0].data,
                 comment: comment
             });
+        } else {
+            console.error('⚠ Socket.io instance not available on req.app!');
+        }
         }
         
         res.json(updatedRecord.rows[0]);
@@ -121,7 +128,12 @@ router.delete('/:id', authenticateToken, requireRole('Audit Supervisor'), async 
         await client.query('COMMIT');
         
         const io = req.app.get('io');
-        if (io) io.emit('recordDeleted', { id: req.params.id });
+        if (io) {
+            console.log('📣 Broadcasting DELETE to all browsers!');
+            io.emit('recordDeleted', { id: req.params.id });
+        } else {
+            console.error('⚠ Socket.io instance not available on req.app!');
+        }
         
         res.json({ message: "Record moved to bin" });
     } catch (err) {

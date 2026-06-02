@@ -17,10 +17,19 @@ function initializeWebSocket() {
 
     socket.on('connect', () => {
         console.log('✓ Connected to server via WebSocket');
+        console.log('Socket ID:', socket.id);
     });
 
     socket.on('disconnect', () => {
         console.log('✗ Disconnected from server');
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('✗ WebSocket connection error:', error);
+    });
+
+    socket.on('error', (error) => {
+        console.error('✗ WebSocket error:', error);
     });
 
     // Listen for new records created by other users
