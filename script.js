@@ -962,11 +962,12 @@ function renderLogs(logs) {
     if (!logs || logs.length === 0) { container.innerHTML = "<p style='color: #999; font-style: italic; font-size: 0.9em; margin: 0; padding: 10px;'>No comments or history yet.</p>"; return; }
     logs.forEach(log => {
         const div = document.createElement('div');
-        div.className = `log-entry ${log.message.startsWith("System:") ? 'system-log' : ''}`;
+        const messageText = log.message || log.comment || '';
+        div.className = `log-entry ${messageText.startsWith("System:") ? 'system-log' : ''}`;
         const logDate = log.date || log.created_at;
         const displayDate = typeof logDate === 'string' ? new Date(logDate).toLocaleString() : logDate;
         const username = log.username ? ` - ${log.username}` : '';
-        div.innerHTML = `<span class="timestamp">${displayDate}${username}</span><span class="message">${log.message || log.comment}</span>`;
+        div.innerHTML = `<span class="timestamp">${displayDate}${username}</span><span class="message">${messageText}</span>`;
         container.appendChild(div);
     });
     container.scrollTop = container.scrollHeight;
