@@ -48,10 +48,13 @@ server.listen(PORT, () => {
 });
 
 io.on('connection', (socket) => {
-    console.log('✓ Client connected:', socket.id);
+    console.log('🔗 New client connected via WebSocket');
+    console.log('   Socket ID:', socket.id);
+    console.log('   Total connected clients:', Object.keys(io.sockets.sockets).length);
 
     socket.on('disconnect', () => {
-        console.log('✗ Client disconnected:', socket.id);
+        console.log('🔌 Client disconnected:', socket.id);
+        console.log('   Remaining connected clients:', Object.keys(io.sockets.sockets).length);
     });
 });
 

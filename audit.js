@@ -33,20 +33,25 @@ router.post('/', authenticateToken, async (req, res) => {
         // Grab the WebSocket safely from the Express app
         const io = req.app.get('io');
         if (io) {
-            console.log('📣 Broadcasting NEW RECORD to all browsers!');
-            console.log('Socket.io instance available. Emitting recordCreated event.');
-            io.emit('recordCreated', {
+            const broadcastData = {
                 id: recordData.id,
                 serial: recordData.serial_number,
                 type: recordData.record_type,
                 name: recordData.record_name,
                 status: recordData.status,
-                // THE FIX: Safely format the date object
                 date: recordData.created_at ? new Date(recordData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                 data: recordData.data
-            });
+            };
+            
+            console.log('📣 Socket.io: Broadcasting NEW RECORD to all connected browsers');
+            console.log('   Record ID:', broadcastData.id);
+            console.log('   Record Name:', broadcastData.name);
+            console.log('   Event type: recordCreated');
+            
+            io.emit('recordCreated', broadcastData);
+            console.log('✅ Broadcast complete');
         } else {
-            console.error('⚠ Socket.io instance not available on req.app!');
+            console.error('❌ ERROR: Socket.io instance not available on req.app!');
         }
         
         res.json(recordData);

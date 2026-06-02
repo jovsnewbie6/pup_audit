@@ -16,16 +16,18 @@ function initializeWebSocket() {
     });
 
     socket.on('connect', () => {
-        console.log('✓ Connected to server via WebSocket');
+        console.log('✅ Connected to server via WebSocket');
         console.log('Socket ID:', socket.id);
+        showNotification('Connected to real-time sync');
     });
 
     socket.on('disconnect', () => {
-        console.log('✗ Disconnected from server');
+        console.log('❌ Disconnected from server');
+        showNotification('Disconnected from real-time sync');
     });
 
     socket.on('connect_error', (error) => {
-        console.error('✗ WebSocket connection error:', error);
+        console.error('❌ WebSocket connection error:', error);
     });
 
     socket.on('error', (error) => {
@@ -34,10 +36,13 @@ function initializeWebSocket() {
 
     // Listen for new records created by other users
     socket.on('recordCreated', (newRecord) => {
-        console.log('📨 New record received:', newRecord.name);
+        console.log('📨 Socket.io: New record broadcast received from server');
+        console.log('   Record:', newRecord);
         
         // Add the new record to mockDatabase if it's not already there
         const exists = mockDatabase.some(r => r.id === newRecord.id || r.serial === newRecord.serial);
+        console.log('   Already exists in local DB?', exists);
+        
         if (!exists) {
             const formattedRecord = {
                 id: newRecord.id,
@@ -70,13 +75,19 @@ function initializeWebSocket() {
             }
             
             mockDatabase.push(formattedRecord);
+            console.log('✅ Record added to local database. Total records:', mockDatabase.length);
             saveToMemory();
             
             // Refresh the UI if we're viewing the same record type
             if (currentTab === newRecord.type) {
+                console.log('📊 Refreshing UI because currentTab matches');
                 searchRecords();
-                showNotification(`New ${newRecord.type} record: ${newRecord.name}`);
+                showNotification(`✨ New ${newRecord.type} record: ${newRecord.name}`);
+            } else {
+                console.log('⚠️ Not refreshing UI - viewing different tab:', currentTab, 'vs', newRecord.type);
             }
+        } else {
+            console.log('⚠️ Record already exists locally, skipping');
         }
     });
 
@@ -1459,6 +1470,7 @@ async function loadRecordsFromAPI() {
 
 async function saveRecordToServer(record) {
     try {
+        console.log('📤 Sending record to server:', record.name);
         const response = await fetch(`${API_BASE_URL}/audit`, {
             method: 'POST',
             headers: {
@@ -1490,14 +1502,16 @@ async function saveRecordToServer(record) {
                 mockDatabase[recordIndex].api_id = savedRecord.id;
                 saveToMemory();
             }
-            console.log('✓ Record saved to server with api_id:', savedRecord.id);
+            console.log('✅ Record successfully saved to server with ID:', savedRecord.id);
+            console.log('⏳ Waiting for real-time sync broadcast from server...');
             return true;
         } else {
-            console.error('Failed to save record to database');
+            const errorData = await response.json();
+            console.error('❌ Failed to save record to database:', response.status, errorData);
             return false;
         }
     } catch (err) {
-        console.error('Error connecting to backend:', err);
+        console.error('❌ Error connecting to backend:', err);
         return false;
     }
 }
