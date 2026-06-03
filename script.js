@@ -6,6 +6,8 @@ var API_BASE_URL = window.location.origin + '/api';
 
 // ============ WEBSOCKET/SOCKET.IO CONNECTION ============
 let socket = null;
+let socketConnected = false;
+let pollInterval = null;
 
 function initializeWebSocket() {
     socket = io(window.location.origin, {
@@ -16,23 +18,44 @@ function initializeWebSocket() {
     });
 
     socket.on('connect', () => {
+        socketConnected = true;
         console.log('✅ Connected to server via WebSocket');
         console.log('Socket ID:', socket.id);
-        showNotification('Connected to real-time sync');
+        showNotification('🔗 Connected to real-time sync');
+        // Stop polling if Socket.io is working
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            console.log('⏹️ Stopping fallback polling - Socket.io is active');
+            pollInterval = null;
+        }
     });
 
     socket.on('disconnect', () => {
+        socketConnected = false;
         console.log('❌ Disconnected from server');
-        showNotification('Disconnected from real-time sync');
+        showNotification('⚠️ Lost real-time connection - using fallback sync');
+        // Start polling if Socket.io disconnects
+        if (!pollInterval) {
+            startFallbackPolling();
+        }
     });
 
     socket.on('connect_error', (error) => {
         console.error('❌ WebSocket connection error:', error);
+        // Start polling if Socket.io fails
+        if (!pollInterval) {
+            startFallbackPolling();
+        }
     });
 
     socket.on('error', (error) => {
-        console.error('✗ WebSocket error:', error);
+        console.error('❌ WebSocket error:', error);
     });
+
+    // Fallback polling - check server every 10 seconds if Socket.io isn't connected
+    if (!socketConnected) {
+        startFallbackPolling();
+    }
 
     // Listen for new records created by other users
     socket.on('recordCreated', (newRecord) => {
@@ -175,6 +198,48 @@ function initializeWebSocket() {
             searchRecords();
         }
     }, 5000);
+}
+
+// Fallback polling if Socket.io doesn't work
+function startFallbackPolling() {
+    if (pollInterval) return; // Already polling
+    
+    console.log('🔄 Starting fallback polling (Socket.io not connected)');
+    pollInterval = setInterval(async () => {
+        if (socketConnected) {
+            // Socket.io is now connected, stop polling
+            clearInterval(pollInterval);
+            pollInterval = null;
+            console.log('✅ Socket.io reconnected, stopping fallback poll');
+            return;
+        }
+        
+        if (!currentToken || !document.getElementById('appContainer') || document.getElementById('appContainer').style.display === 'none') {
+            return; // Not logged in or viewing wrong page
+        }
+        
+        try {
+            // Check server for new records
+            const freshRecords = await loadRecordsFromAPI();
+            if (freshRecords) {
+                // Check if there are any NEW records not in mockDatabase
+                const newRecords = freshRecords.filter(sr => 
+                    !mockDatabase.some(lr => lr.api_id === sr.id || lr.id === sr.id)
+                );
+                
+                if (newRecords.length > 0) {
+                    console.log('📥 Fallback poll found', newRecords.length, 'new records');
+                    mockDatabase = freshRecords;
+                    saveToMemory();
+                    if (currentTab && document.getElementById('resultsContainer')) {
+                        searchRecords();
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Poll error:', error);
+        }
+    }, 10000); // Poll every 10 seconds
 }
 
 function showNotification(message) {
