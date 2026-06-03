@@ -12,6 +12,12 @@ const logAction = async (client, recordId, userId, action, comment, oldVal, newV
 
 router.post('/', authenticateToken, async (req, res) => {
     const { record_name, record_type, serial_number, data } = req.body;
+    console.log('📨 POST /audit - Received request to create record');
+    console.log('   User ID:', req.user?.id);
+    console.log('   User:', req.user?.username);
+    console.log('   Record name:', record_name);
+    console.log('   Record type:', record_type);
+    
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -20,12 +26,22 @@ router.post('/', authenticateToken, async (req, res) => {
         if (typeof data === 'string') {
             try { dataForDb = JSON.parse(data); } catch (e) { dataForDb = data; }
         }
+        // Ensure data is JSON-serializable for the database
+        if (dataForDb && typeof dataForDb === 'object') {
+            dataForDb = JSON.stringify(dataForDb);
+        }
         
+        console.log('💾 Inserting record into database...');
         const newRecord = await client.query(
             "INSERT INTO audit_records (record_name, record_type, serial_number, data, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *",
             [record_name, record_type, serial_number, dataForDb, req.user.id]
         );
+        console.log('✅ Record inserted, ID:', newRecord.rows[0].id);
+        
+        console.log('📝 Logging action...');
         await logAction(client, newRecord.rows[0].id, req.user.id, 'CREATE', 'Initial record creation', null, dataForDb);
+        console.log('✅ Action logged');
+        
         await client.query('COMMIT');
         
         const recordData = newRecord.rows[0];
@@ -46,7 +62,6 @@ router.post('/', authenticateToken, async (req, res) => {
             console.log('📣 Socket.io: Broadcasting NEW RECORD to all connected browsers');
             console.log('   Record ID:', broadcastData.id);
             console.log('   Record Name:', broadcastData.name);
-            console.log('   Event type: recordCreated');
             
             io.emit('recordCreated', broadcastData);
             console.log('✅ Broadcast complete');
@@ -56,6 +71,8 @@ router.post('/', authenticateToken, async (req, res) => {
         
         res.json(recordData);
     } catch (err) {
+        console.error('❌ ERROR in POST /audit:', err.message);
+        console.error('   Stack:', err.stack);
         await client.query('ROLLBACK');
         res.status(500).json({ error: err.message });
     } finally {

@@ -1590,12 +1590,19 @@ async function saveRecordToServer(record) {
             console.log('⏳ Waiting for real-time sync broadcast from server...');
             return true;
         } else {
-            const errorData = await response.json();
-            console.error('❌ Failed to save record to database:', response.status, errorData);
+            try {
+                const errorData = await response.json();
+                console.error('❌ Server error (HTTP ' + response.status + '):', errorData.error || errorData);
+                showNotification('❌ Error saving record: ' + (errorData.error || 'Unknown error'));
+            } catch (e) {
+                console.error('❌ Server error (HTTP ' + response.status + ') - Could not parse error response');
+                showNotification('❌ Server error: HTTP ' + response.status);
+            }
             return false;
         }
     } catch (err) {
-        console.error('❌ Error connecting to backend:', err);
+        console.error('❌ Network error connecting to backend:', err.message);
+        showNotification('❌ Connection error: ' + err.message);
         return false;
     }
 }
