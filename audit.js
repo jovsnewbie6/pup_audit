@@ -11,7 +11,8 @@ const logAction = async (client, recordId, userId, action, comment, oldVal, newV
 };
 
 router.post('/', authenticateToken, async (req, res) => {
-    const { record_name, record_type, serial_number, data } = req.body;
+    const { record_name, record_type, data } = req.body;
+    // NOTE: serial_number is now generated on the SERVER to ensure uniqueness!
     console.log('📨 POST /audit - Received request to create record');
     console.log('   User ID:', req.user?.id);
     console.log('   User:', req.user?.username);
@@ -20,60 +21,97 @@ router.post('/', authenticateToken, async (req, res) => {
     
     const client = await pool.connect();
     try {
-        await client.query('BEGIN');
+        // Generate unique serial number on server
+        const yearStr = new Date().getFullYear().toString();
+        const typeIndicator = record_type === 'Reimbursement' ? 'R' : 'L';
         
-        let dataForDb = data;
-        if (typeof data === 'string') {
-            try { dataForDb = JSON.parse(data); } catch (e) { dataForDb = data; }
-        }
-        // Ensure data is JSON-serializable for the database
-        if (dataForDb && typeof dataForDb === 'object') {
-            dataForDb = JSON.stringify(dataForDb);
-        }
-        
-        console.log('💾 Inserting record into database...');
-        const newRecord = await client.query(
-            "INSERT INTO audit_records (record_name, record_type, serial_number, data, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [record_name, record_type, serial_number, dataForDb, req.user.id]
+        // Query for the highest sequence number for this type+year
+        const sequenceQuery = await client.query(
+            "SELECT COALESCE(MAX(CAST(SUBSTRING(serial_number FROM POSITION(' - ' IN serial_number) + 3) AS INTEGER)), 0) as max_seq FROM audit_records WHERE record_type = $1 AND serial_number LIKE $2",
+            [record_type, `%${yearStr}%`]
         );
-        console.log('✅ Record inserted, ID:', newRecord.rows[0].id);
         
-        console.log('📝 Logging action...');
-        await logAction(client, newRecord.rows[0].id, req.user.id, 'CREATE', 'Initial record creation', null, dataForDb);
-        console.log('✅ Action logged');
+        let nextSequence = (sequenceQuery.rows[0]?.max_seq || 0) + 1;
+        let serial_number = `AUD-${typeIndicator}: ${yearStr} - ${String(nextSequence).padStart(4, '0')}`;
         
-        await client.query('COMMIT');
-        
-        const recordData = newRecord.rows[0];
-        
-        // Grab the WebSocket safely from the Express app
-        const io = req.app.get('io');
-        if (io) {
-            const broadcastData = {
-                id: recordData.id,
-                serial: recordData.serial_number,
-                type: recordData.record_type,
-                name: recordData.record_name,
-                status: recordData.status,
-                date: recordData.created_at ? new Date(recordData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                data: recordData.data
-            };
-            
-            console.log('📣 Socket.io: Broadcasting NEW RECORD to all connected browsers');
-            console.log('   Record ID:', broadcastData.id);
-            console.log('   Record Name:', broadcastData.name);
-            
-            io.emit('recordCreated', broadcastData);
-            console.log('✅ Broadcast complete');
-        } else {
-            console.error('❌ ERROR: Socket.io instance not available on req.app!');
+        // Try up to 5 times in case of collision (shouldn't happen but just in case)
+        for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+                await client.query('BEGIN');
+                
+                let dataForDb = data;
+                if (typeof data === 'string') {
+                    try { dataForDb = JSON.parse(data); } catch (e) { dataForDb = data; }
+                }
+                // Ensure data is JSON-serializable for the database
+                if (dataForDb && typeof dataForDb === 'object') {
+                    dataForDb = JSON.stringify(dataForDb);
+                }
+                
+                console.log('💾 Inserting record into database...');
+                console.log('   Serial number:', serial_number);
+                
+                const newRecord = await client.query(
+                    "INSERT INTO audit_records (record_name, record_type, serial_number, data, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+                    [record_name, record_type, serial_number, dataForDb, req.user.id]
+                );
+                console.log('✅ Record inserted, ID:', newRecord.rows[0].id);
+                
+                console.log('📝 Logging action...');
+                await logAction(client, newRecord.rows[0].id, req.user.id, 'CREATE', 'Initial record creation', null, dataForDb);
+                console.log('✅ Action logged');
+                
+                await client.query('COMMIT');
+                
+                const recordData = newRecord.rows[0];
+                
+                // Grab the WebSocket safely from the Express app
+                const io = req.app.get('io');
+                if (io) {
+                    const broadcastData = {
+                        id: recordData.id,
+                        serial: recordData.serial_number,
+                        type: recordData.record_type,
+                        name: recordData.record_name,
+                        status: recordData.status,
+                        date: recordData.created_at ? new Date(recordData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                        data: recordData.data
+                    };
+                    
+                    console.log('📣 Socket.io: Broadcasting NEW RECORD to all connected browsers');
+                    console.log('   Record ID:', broadcastData.id);
+                    console.log('   Record Name:', broadcastData.name);
+                    console.log('   Serial:', broadcastData.serial);
+                    
+                    io.emit('recordCreated', broadcastData);
+                    console.log('✅ Broadcast complete - sent to', Object.keys(io.sockets.sockets).length, 'connected clients');
+                } else {
+                    console.error('❌ ERROR: Socket.io instance not available on req.app!');
+                }
+                
+                res.json(recordData);
+                return; // Success, exit loop
+                
+            } catch (innerErr) {
+                if (innerErr.message.includes('duplicate key')) {
+                    console.log('⚠️ Sequence collision, retrying with next sequence...');
+                    nextSequence++;
+                    serial_number = `AUD-${typeIndicator}: ${yearStr} - ${String(nextSequence).padStart(4, '0')}`;
+                    await client.query('ROLLBACK');
+                } else {
+                    throw innerErr; // Re-throw if not a duplicate key error
+                }
+            }
         }
         
-        res.json(recordData);
+        throw new Error('Could not generate unique serial number after 5 attempts');
+        
     } catch (err) {
         console.error('❌ ERROR in POST /audit:', err.message);
         console.error('   Stack:', err.stack);
-        await client.query('ROLLBACK');
+        try {
+            await client.query('ROLLBACK');
+        } catch (e) {}
         res.status(500).json({ error: err.message });
     } finally {
         client.release();

@@ -1564,7 +1564,8 @@ async function saveRecordToServer(record) {
             body: JSON.stringify({
                 record_name: record.name,
                 record_type: record.type,
-                serial_number: record.serial,
+                // NOTE: serial_number is now generated on the SERVER for uniqueness!
+                // serial_number: record.serial,  <- REMOVED
                 data: {
                     excelData: record.excelData,
                     style: record.style,
@@ -1578,15 +1579,19 @@ async function saveRecordToServer(record) {
 
         if (response.ok) {
             const savedRecord = await response.json();
-            // Set the api_id so future updates work
+            // Server returns the record WITH the generated serial_number
             record.api_id = savedRecord.id;
-            // Update in mockDatabase to ensure the api_id is persisted
-            const recordIndex = mockDatabase.findIndex(r => r.serial === record.serial);
+            record.serial = savedRecord.serial_number; // Get serial from server
+            
+            // Update in mockDatabase to ensure the api_id and serial are persisted
+            const recordIndex = mockDatabase.findIndex(r => r.id === record.id);
             if (recordIndex !== -1) {
                 mockDatabase[recordIndex].api_id = savedRecord.id;
+                mockDatabase[recordIndex].serial = savedRecord.serial_number;
                 saveToMemory();
             }
             console.log('✅ Record successfully saved to server with ID:', savedRecord.id);
+            console.log('   Server-generated serial:', savedRecord.serial_number);
             console.log('⏳ Waiting for real-time sync broadcast from server...');
             return true;
         } else {
