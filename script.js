@@ -539,7 +539,26 @@ function canDeleteRecords() {
     return false;
 }
 
-document.addEventListener('DOMContentLoaded', () => { 
+document.addEventListener('DOMContentLoaded', async () => {
+    // First, try to load fresh records from the server
+    if (currentToken) {
+        console.log('📥 Refreshing records from server...');
+        const freshRecords = await loadRecordsFromAPI();
+        if (freshRecords && freshRecords.length > 0) {
+            console.log('✅ Loaded', freshRecords.length, 'records from server');
+            mockDatabase = freshRecords;
+            saveToMemory();
+        } else if (freshRecords) {
+            console.log('ℹ️ Server has no records yet');
+            mockDatabase = [];
+            saveToMemory();
+        } else {
+            console.log('⚠️ Could not load from server, using local cache');
+        }
+    } else {
+        console.log('⚠️ No auth token, waiting for login');
+    }
+    
     renderSidebar(); 
     searchRecords(); 
     document.getElementById('searchInput').addEventListener('keyup', searchRecords);
