@@ -1019,17 +1019,33 @@ function openModal(id) {
     }
 
    let loadingSpreadsheet = true; 
+    
+    // 1. Determine if the current viewer is a restricted Staff Auditor
+    const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
+    
+    // 2. Generate dynamic column permissions
+    const columnConfig = [];
+    for (let i = 0; i < 20; i++) {
+        columnConfig.push({
+            type: 'text',
+            width: 140,
+            // Lock columns A through N (0-13) if the user is a Staff Auditor.
+            // Columns O through T (14-19) remain editable for their audit work.
+            readOnly: isStaff && i <= 13 
+        });
+    }
+
     currentSpreadsheet = jspreadsheet(container, {
         data: record.excelData,
         minDimensions: [20, 20], 
-        defaultColWidth: 140, 
+        columns: columnConfig, // Inject the dynamic security permissions
         tableOverflow: true, 
         tableWidth: "100%", 
         tableHeight: "400px",
-        columnDrag: true, 
-        rowDrag: true, 
-        allowInsertRow: true, 
-        allowInsertColumn: true,
+        columnDrag: !isStaff, // Prevent staff from dragging locked columns to unlocked zones
+        rowDrag: !isStaff, 
+        allowInsertRow: !isStaff, // Prevent staff from injecting blank rows
+        allowInsertColumn: false,
         style: record.style || {}, 
         mergeCells: record.mergeCells || {}, 
         responsive: true,
@@ -1045,15 +1061,11 @@ function openModal(id) {
                 ? `System: Cleared cell ${cellRef}` 
                 : `System: Updated Excel cell ${cellRef} to "${value}"`;
             
-            // 1. Send the automatic system log to the audit history trail immediately
+            // Only send the lightweight log to the server in real-time to prevent server crashes
+            // (The actual heavy Excel data will safely sync when they close the modal)
             sendCommentToServer(record.api_id, message, (success) => {
                 if (!success) console.error(`Failed to log cell edit: ${cellRef}`);
             });
-
-            // 2. Broadcast the full spreadsheet data update across WebSockets instantly
-            const updatedExcelData = currentSpreadsheet.getData();
-            record.excelData = updatedExcelData;
-            updateRecordOnServer(record, `Modified cell ${cellRef}`);
         }
     });
     loadingSpreadsheet = false;
