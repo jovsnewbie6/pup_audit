@@ -64,7 +64,6 @@
                 <button onclick="backupDatabase()" class="util-btn">📥 Backup Data</button>
                 <input type="file" id="restoreFile" accept=".json" style="display:none;" onchange="restoreDatabase(event)">
                 <button onclick="document.getElementById('restoreFile').click()" class="util-btn">📤 Restore Data</button>
-                <button onclick="openPasswordModal()" class="util-btn">⚙️ Change Password</button>
                 <button onclick="openSettingsModal()" class="util-btn">⚙️ User Settings</button>
                 <button onclick="handleLogout()" class="util-btn logout-btn">🚪 Logout</button>
             </div>
@@ -254,28 +253,6 @@
 </div>
 
     <!-- PASSWORD CHANGE MODAL -->
-    <div id="passwordModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <span class="close-btn" onclick="closePasswordModal()">&times;</span>
-            <h2>Change Password</h2>
-            <form id="passwordForm" onsubmit="handlePasswordChange(event)">
-                <div class="auth-form-group">
-                    <label>Current Password</label>
-                    <input type="password" id="currentPassword" placeholder="Enter current password" required>
-                </div>
-                <div class="auth-form-group">
-                    <label>New Password</label>
-                    <input type="password" id="newPassword" placeholder="Enter new password" required>
-                </div>
-                <div class="auth-form-group">
-                    <label>Confirm New Password</label>
-                    <input type="password" id="confirmNewPassword" placeholder="Confirm new password" required>
-                </div>
-                <button type="submit" class="auth-btn">Change Password</button>
-                <p id="passwordError" class="auth-error"></p>
-            </form>
-        </div>
-    </div>
 <div id="settingsModal" class="modal">
     <div class="modal-content" style="max-width: 600px;">
         <span class="close-btn" onclick="closeSettingsModal()">&times;</span>

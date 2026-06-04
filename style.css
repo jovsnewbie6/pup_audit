@@ -240,6 +240,71 @@ header { display: flex; justify-content: space-between; align-items: flex-start;
 .role-badge { background: #800000; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; font-weight: bold; }
 .role-badge.role-supervisor { background: #059669; color: white; }
 .role-badge.role-auditor { background: #0369a1; color: white; }
+
+/* ============ MOBILE RESPONSIVE ============ */
+
+/* Tablets (768px and below) */
+@media (max-width: 768px) {
+    .layout { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; padding-bottom: 10px; }
+    .sidebar-nav-container { max-height: 200px; overflow-y: auto; }
+    .main-content { padding: 20px; overflow-y: auto; }
+    header { flex-direction: column; align-items: flex-start; gap: 15px; }
+    .header-right { width: 100%; justify-content: space-between; }
+    .dashboard-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .dash-value { font-size: 1.8em; }
+    .search-section { flex-direction: column; }
+    .search-section input[type="date"] { flex: 1; }
+    .excel-toolbar { flex-wrap: wrap; gap: 8px; }
+    .tool-btn { padding: 8px 12px; font-size: 0.9em; }
+    .modal-content { width: 95%; max-width: 95%; margin: 10% auto; max-height: 90vh; }
+    .card { padding: 12px; }
+    .card h3 { font-size: 1em; }
+}
+
+/* Mobile (480px and below) */
+@media (max-width: 480px) {
+    .layout { height: 100vh; }
+    .sidebar { width: 100%; height: auto; }
+    .sidebar .logo { padding: 15px 10px; font-size: 1.4em; }
+    .sidebar-utils { flex-direction: row; flex-wrap: wrap; gap: 5px; }
+    .util-btn { padding: 8px 10px; font-size: 0.75em; flex: 1; min-width: 80px; }
+    .main-content { padding: 15px; }
+    header h1 { font-size: 1.5em; }
+    header p { font-size: 0.9em; }
+    .dashboard-row { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 15px; }
+    .dash-title { font-size: 0.75em; }
+    .dash-value { font-size: 1.4em; }
+    .primary-btn, .danger-btn { padding: 8px 12px; font-size: 0.9em; width: 100%; }
+    .search-section { gap: 8px; margin-bottom: 15px; }
+    .search-section input { padding: 8px; font-size: 1em; }
+    .search-section button { padding: 8px 12px; }
+    .card { padding: 10px; margin-bottom: 10px; }
+    .card h3 { margin: 0 0 5px 0; font-size: 0.95em; padding-right: 80px; }
+    .status-badge { font-size: 0.7em; padding: 4px 8px; }
+    .modal-content { padding: 15px; margin: 20% auto 10% auto; }
+    .modal { padding-bottom: 30px; }
+    .excel-toolbar { flex-direction: column; }
+    .tool-btn { width: 100%; }
+    .excel-container { height: 250px; }
+    .form-grid { grid-template-columns: 1fr; gap: 10px; }
+    .form-group input, .form-group select { font-size: 1em; padding: 10px; }
+    .auth-form-group { margin-bottom: 10px; }
+    .auth-form-group input { padding: 10px; font-size: 1em; width: 100%; }
+    #loginUsername, #newUserRole, #registerRole { width: 100%; padding: 10px; font-size: 1em; }
+    .audit-log-section { max-height: 200px; }
+    .log-history { max-height: 150px; overflow-y: auto; }
+    .log-entry { font-size: 0.9em; padding: 8px; }
+    .window-controls { gap: 10px; }
+}
+
+/* Very small devices (< 320px) */
+@media (max-width: 320px) {
+    .sidebar .logo { font-size: 1.2em; padding: 10px 8px; }
+    .util-btn { font-size: 0.65em; padding: 6px 8px; }
+    header h1 { font-size: 1.2em; }
+    .dashboard-row { grid-template-columns: 1fr; }
+}
 #userName { color: #333; font-weight: bold; font-size: 0.95em; }
 
 /* LOGOUT BUTTON */

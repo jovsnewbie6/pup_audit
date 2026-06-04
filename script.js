@@ -964,6 +964,10 @@ function openModal(id) {
     if (isFullScreen) toggleFullScreen(); 
 
     currentOpenRecordId = id;
+    
+    // Store previous Excel data for change detection
+    record.previousExcelData = record.excelData ? JSON.parse(JSON.stringify(record.excelData)) : [];
+    
     document.getElementById('fileModal').style.display = 'block';
     document.getElementById('modalTitle').innerText = `[${record.serial}] Audit Worksheet: ${record.name}`;
     document.getElementById('recordStatusDropdown').value = record.status || "Pending";
@@ -1031,6 +1035,63 @@ function openModal(id) {
     });
 }
 
+// Detect changes in Excel data and create audit log entries
+function detectAndLogChanges(record, newData) {
+    const oldData = record.previousExcelData || record.excelData || [];
+    const changes = [];
+    
+    // Compare cell values between old and new data
+    for (let row = 0; row < Math.max(oldData.length, newData.length); row++) {
+        const oldRow = oldData[row] || [];
+        const newRow = newData[row] || [];
+        
+        for (let col = 0; col < Math.max(oldRow.length, newRow.length); col++) {
+            const oldVal = oldRow[col] || '';
+            const newVal = newRow[col] || '';
+            
+            if (String(oldVal).trim() !== String(newVal).trim()) {
+                // Convert column index to letter (0=A, 1=B, etc)
+                const colLetter = String.fromCharCode(65 + col);
+                const cellRef = `${colLetter}${row + 1}`;
+                changes.push({
+                    cell: cellRef,
+                    oldVal: String(oldVal).substring(0, 50), // Truncate for readability
+                    newVal: String(newVal).substring(0, 50)
+                });
+            }
+        }
+    }
+    
+    // Create audit log entries for changes
+    if (changes.length > 0 && currentUser) {
+        if (!record.logs) record.logs = [];
+        
+        // Group changes summary
+        const summary = changes.length <= 5 
+            ? changes.map(c => `${c.cell}: "${c.oldVal}" → "${c.newVal}"`).join('; ')
+            : `${changes.length} cells modified`;
+        
+        const editMessage = `${currentUser.username} edited Excel data: ${summary}`;
+        record.logs.push({ 
+            date: new Date().toLocaleString(), 
+            message: editMessage,
+            username: currentUser.username
+        });
+        
+        // Send to server as a system comment
+        if (record.api_id && currentToken) {
+            fetch(`${API_BASE_URL}/audit/${record.api_id}/logs`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentToken}`
+                },
+                body: JSON.stringify({ comment: editMessage })
+            }).catch(err => console.log('Note: Could not post edit summary to server'));
+        }
+    }
+}
+
 function toggleAuditLog() {
     const logHistory = document.getElementById('logHistory');
     const logInput = document.querySelector('.log-input-area');
@@ -1047,7 +1108,12 @@ function closeModal() {
     if (currentSpreadsheet && currentOpenRecordId) {
         const record = mockDatabase.find(item => item.id === currentOpenRecordId);
         if (record) {
-            record.excelData = currentSpreadsheet.getData();
+            const newExcelData = currentSpreadsheet.getData();
+            
+            // Detect and log changes before updating
+            detectAndLogChanges(record, newExcelData);
+            
+            record.excelData = newExcelData;
             record.headers = currentSpreadsheet.getHeaders().split(',');
             record.style = currentSpreadsheet.getStyle();
             record.mergeCells = currentSpreadsheet.getConfig().mergeCells || {};
@@ -1333,13 +1399,13 @@ function restoreModal() {
 // ============ USER SETTINGS & PASSWORD ============
 
 function openPasswordModal() {
-    document.getElementById('passwordModal').style.display = 'block';
+    // Password management moved to User Settings modal
+    openSettingsModal();
 }
 
 function closePasswordModal() {
-    document.getElementById('passwordModal').style.display = 'none';
-    document.getElementById('passwordForm').reset();
-    document.getElementById('passwordError').textContent = '';
+    // Deprecated: Password modal removed - now part of User Settings
+    // This function kept for backwards compatibility
 }
 
 function openSettingsModal() {
@@ -1383,7 +1449,6 @@ async function handlePasswordChange(event) {
             errorEl.textContent = 'Password updated successfully!';
             setTimeout(() => {
                 closeSettingsModal();
-                closePasswordModal();
             }, 1500);
         } else {
             errorEl.style.color = '#dc2626'; 
