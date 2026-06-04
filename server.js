@@ -67,28 +67,11 @@ const initDB = async () => {
 
     const client = await pool.connect();
     try {
-        // Check if tables already exist
-        const tableCheck = await client.query(
-            "SELECT to_regclass('public.users')"
-        );
+        console.log('Initializing database tables safely...');
         
-        if (tableCheck.rows[0].to_regclass !== null) {
-            console.log('✓ Database tables already exist, skipping initialization');
-        } else {
-            console.log('Creating database tables...');
-            
-        // Drop tables in correct order (dependencies first)
-        try { await client.query('DROP TABLE IF EXISTS audit_logs CASCADE;'); } catch (e) { }
-        try { await client.query('DROP TABLE IF EXISTS audit_records CASCADE;'); } catch (e) { }
-        try { await client.query('DROP TABLE IF EXISTS permissions CASCADE;'); } catch (e) { }
-        try { await client.query('DROP TABLE IF EXISTS users CASCADE;'); } catch (e) { }
-
-        // Give the drops time to complete
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Create users table
+        // Create users table safely
         await client.query(`
-            CREATE TABLE users (
+            CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
@@ -98,9 +81,9 @@ const initDB = async () => {
             );
         `);
 
-        // Create audit_records table
+        // Create audit_records table safely
         await client.query(`
-            CREATE TABLE audit_records (
+            CREATE TABLE IF NOT EXISTS audit_records (
                 id SERIAL PRIMARY KEY,
                 record_name VARCHAR(255) NOT NULL,
                 record_type VARCHAR(50) NOT NULL,
@@ -114,9 +97,9 @@ const initDB = async () => {
             );
         `);
 
-        // Create audit_logs table
+        // Create audit_logs table safely
         await client.query(`
-            CREATE TABLE audit_logs (
+            CREATE TABLE IF NOT EXISTS audit_logs (
                 id SERIAL PRIMARY KEY,
                 record_id INTEGER REFERENCES audit_records(id),
                 user_id INTEGER REFERENCES users(id),
@@ -128,9 +111,9 @@ const initDB = async () => {
             );
         `);
 
-        // Create permissions table
+        // Create permissions table safely
         await client.query(`
-            CREATE TABLE permissions (
+            CREATE TABLE IF NOT EXISTS permissions (
                 id SERIAL PRIMARY KEY,
                 role VARCHAR(50) NOT NULL,
                 action VARCHAR(100) NOT NULL,
@@ -138,7 +121,6 @@ const initDB = async () => {
                 UNIQUE (role, action)
             );
         `);
-        }
 
         // Create default admin user
         const adminCheck = await client.query("SELECT * FROM users WHERE username = 'admin'");
