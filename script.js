@@ -1018,9 +1018,10 @@ function openModal(id) {
         columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
     }
 
+    let loadingSpreadsheet = true; 
     currentSpreadsheet = jspreadsheet(container, {
         data: record.excelData,
-        minDimensions: [20, 20], // Changed to 20 wide
+        minDimensions: [20, 20], 
         defaultColWidth: 140, 
         tableOverflow: true, 
         tableWidth: "100%", 
@@ -1033,12 +1034,16 @@ function openModal(id) {
         mergeCells: record.mergeCells || {}, 
         responsive: true,
         onchange: function(instance, cell, x, y, value) {
+            if (loadingSpreadsheet) return; 
             if (!record.api_id) return; 
             
             const colLetter = String.fromCharCode(65 + parseInt(x));
             const rowNum = parseInt(y) + 1;
             const cellRef = `${colLetter}${rowNum}`;
-            const message = `System: Updated Excel cell ${cellRef} to "${value}"`;
+            
+            const message = value === "" 
+                ? `System: Cleared cell ${cellRef}` 
+                : `System: Updated Excel cell ${cellRef} to "${value}"`;
             
             sendCommentToServer(record.api_id, message, (success) => {
                 if (!success) {
@@ -1047,7 +1052,7 @@ function openModal(id) {
             });
         }
     });
-}
+    loadingSpreadsheet = false;
 
 // Detect changes in Excel data and create audit log entries
 function detectAndLogChanges(record, newData) {
