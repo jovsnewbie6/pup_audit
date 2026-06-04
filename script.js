@@ -1031,7 +1031,21 @@ function openModal(id) {
         allowInsertColumn: true,
         style: record.style || {}, 
         mergeCells: record.mergeCells || {}, 
-        responsive: true
+        responsive: true,
+        onchange: function(instance, cell, x, y, value) {
+            if (!record.api_id) return; 
+            
+            const colLetter = String.fromCharCode(65 + parseInt(x));
+            const rowNum = parseInt(y) + 1;
+            const cellRef = `${colLetter}${rowNum}`;
+            const message = `System: Updated Excel cell ${cellRef} to "${value}"`;
+            
+            sendCommentToServer(record.api_id, message, (success) => {
+                if (!success) {
+                    console.error(`Failed to log cell edit: ${cellRef}`);
+                }
+            });
+        }
     });
 }
 
