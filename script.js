@@ -1053,6 +1053,7 @@ function openModal(id) {
         }
     });
     loadingSpreadsheet = false;
+}
 
 // Detect changes in Excel data and create audit log entries
 function detectAndLogChanges(record, newData) {
