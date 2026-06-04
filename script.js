@@ -1018,7 +1018,7 @@ function openModal(id) {
         columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
     }
 
-    let loadingSpreadsheet = true; 
+   let loadingSpreadsheet = true; 
     currentSpreadsheet = jspreadsheet(container, {
         data: record.excelData,
         minDimensions: [20, 20], 
@@ -1045,14 +1045,19 @@ function openModal(id) {
                 ? `System: Cleared cell ${cellRef}` 
                 : `System: Updated Excel cell ${cellRef} to "${value}"`;
             
+            // 1. Send the automatic system log to the audit history trail immediately
             sendCommentToServer(record.api_id, message, (success) => {
-                if (!success) {
-                    console.error(`Failed to log cell edit: ${cellRef}`);
-                }
+                if (!success) console.error(`Failed to log cell edit: ${cellRef}`);
             });
+
+            // 2. Broadcast the full spreadsheet data update across WebSockets instantly
+            const updatedExcelData = currentSpreadsheet.getData();
+            record.excelData = updatedExcelData;
+            updateRecordOnServer(record, `Modified cell ${cellRef}`);
         }
     });
     loadingSpreadsheet = false;
+
 }
 
 // Detect changes in Excel data and create audit log entries
