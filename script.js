@@ -938,6 +938,8 @@ function openModal(id) {
         "Audit Result", "Date forwarded to the Chief", "Reviewed by \\ Comments", 
         "Reviewed by \\ Dates", "Remarks"
     ];
+    
+    const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
 
     if (!record.excelData || record.excelData.length === 0) {
         const title = `SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`;
@@ -952,7 +954,19 @@ function openModal(id) {
         ];
         
         record.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
-        record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
+        record.style = {};
+        
+        // Apply center alignment and bold to rows 1-3 across ALL columns
+        const headerRows = ['1', '2', '3'];
+        headerRows.forEach(row => {
+            columns.forEach(col => {
+                if (row === '1') {
+                    record.style[`${col}${row}`] = 'text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;';
+                } else {
+                    record.style[`${col}${row}`] = 'text-align: center; font-weight: bold; vertical-align: middle;';
+                }
+            });
+        });
     } else {
         // For existing records, always ensure row 4 has complete headers
         if (!record.excelData[3]) {
@@ -961,11 +975,11 @@ function openModal(id) {
             // Ensure all 20 columns in row 4 are filled with headers
             record.excelData[3] = headers.map((h, i) => h || record.excelData[3][i] || "");
         }
+        if (!record.style) record.style = {};
     }
     
     // Always ensure row 4 (headers) is yellow for ALL records
     if (!record.style) record.style = {};
-    const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
     columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
 
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
@@ -1006,8 +1020,7 @@ for (let i = 0; i < 20; i++) {
     
     // Reapply row 4 yellow styling to prevent it from disappearing
     if (y !== 3) {
-        const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
-        columns.forEach((col, idx) => {
+        columns.forEach((col) => {
             currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
         });
     }
@@ -1026,9 +1039,19 @@ for (let i = 0; i < 20; i++) {
         }
     });
     
-    // Force set the row 4 styles after spreadsheet is created
+    // Force set the row styles after spreadsheet is created
     setTimeout(() => {
-        const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
+        // Ensure rows 1-3 stay centered
+        ['1', '2', '3'].forEach(row => {
+            columns.forEach(col => {
+                if (row === '1') {
+                    currentSpreadsheet.setStyle(`${col}${row}`, 'text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;');
+                } else {
+                    currentSpreadsheet.setStyle(`${col}${row}`, 'text-align: center; font-weight: bold; vertical-align: middle;');
+                }
+            });
+        });
+        // Ensure row 4 stays yellow
         columns.forEach(col => {
             currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
         });
