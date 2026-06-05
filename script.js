@@ -967,18 +967,20 @@ function openModal(id) {
     if (!record.style) record.style = {};
     const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
     columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
+    // Make row 4 Auditor column (M4) read-only so it doesn't show as dropdown
+    record.style['M4'] = 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;';
 
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
     const columnConfig = [];
 for (let i = 0; i < 20; i++) {
-    // If column index is 12 (the 13th column), make it the dropdown
+    // If column index is 12 (the 13th column, M), make it the dropdown
     if (i === 12) { 
         columnConfig.push({
             type: 'dropdown',
             title: 'Auditor',
             source: ['Anjo Almoroto', 'Edilmira Maya', 'Melissa Campanero', 'Milagros Santos', 'Sarah Jane Guevarra', 'Jake Binuya'],
             width: 150,
-            readOnly: isStaff // Lock it for staff if needed
+            readOnly: (row) => row === 3 ? true : isStaff // Make row 4 (index 3) read-only, lock others for staff
         });
     } else {
         columnConfig.push({ type: 'text', width: 140, readOnly: isStaff && i <= 13 });
