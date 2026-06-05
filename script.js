@@ -141,46 +141,30 @@ function initializeWebSocket() {
 
     // ---> THE ULTIMATE VISUAL OVERRIDE <---
     socket.on('cell_updated', (data) => {
-        console.log("📥 Live sync received for cell:", data.cellRef, "Value:", data.value);
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // 1. Force the invisible background update so memory always perfectly matches
-            if (!targetRecord.excelData) targetRecord.excelData = [];
-            while (targetRecord.excelData.length <= data.y) {
-                targetRecord.excelData.push(Array(20).fill(""));
-            }
+            // ... (keep the existing background update code here) ...
             targetRecord.excelData[data.y][data.x] = data.value;
-
-            if (targetRecord.previousExcelData) {
-                while (targetRecord.previousExcelData.length <= data.y) {
-                    targetRecord.previousExcelData.push(Array(20).fill(""));
-                }
-                targetRecord.previousExcelData[data.y][data.x] = data.value;
-            }
             saveToMemory();
 
-            // 2. Visually draw it on the screen IMMEDIATELY if they have it open
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
                 isReceivingSync = true;
                 
-                try {
-                    // Attempt the standard API update
-                    if (typeof currentSpreadsheet.setValueFromCoords === 'function') {
-                        currentSpreadsheet.setValueFromCoords(data.x, data.y, data.value, true);
-                    } else {
-                        currentSpreadsheet.setValue(data.cellRef, data.value, true);
-                    }
-
-                    // 💥 THE FAIL-SAFE DOM OVERRIDE: 
-                    // If JSpreadsheet refuses to draw it because of staff column locks, we forcefully write the text directly into the website's HTML code.
-                    const domCell = currentSpreadsheet.getCell(data.cellRef);
-                    if (domCell) {
-                        domCell.innerHTML = data.value;
-                    }
-                } catch (e) {
-                    console.error("Sync render error:", e);
+                // Drop lock to write
+                const colIndex = parseInt(data.x);
+                let wasReadOnly = false;
+                if (currentSpreadsheet.options.columns[colIndex]?.readOnly) {
+                    wasReadOnly = true;
+                    currentSpreadsheet.options.columns[colIndex].readOnly = false;
                 }
+                
+                currentSpreadsheet.setValue(data.cellRef, data.value, true);
+                
+                // ---> THE MISSING LINK: FORCE THE SPREADSHEET TO ACKNOWLEDGE THE CHANGE <---
+                currentSpreadsheet.refresh(); 
+                
+                if (wasReadOnly) currentSpreadsheet.options.columns[colIndex].readOnly = true;
                 
                 isReceivingSync = false;
             }
@@ -1679,3 +1663,4 @@ async function updateRecordOnServer(record, comment = '') {
         return false;
     }
 }
+//Force trigger for Update
