@@ -954,19 +954,7 @@ function openModal(id) {
         ];
         
         record.mergeCells = {};
-        record.style = {};
-        
-        // Apply center alignment and bold to rows 1-3 across ALL columns
-        const headerRows = ['1', '2', '3'];
-        headerRows.forEach(row => {
-            columns.forEach(col => {
-                if (row === '1') {
-                    record.style[`${col}${row}`] = 'text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;';
-                } else {
-                    record.style[`${col}${row}`] = 'text-align: center; font-weight: bold; vertical-align: middle;';
-                }
-            });
-        });
+        record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
     } else {
         // For existing records, always ensure row 4 has complete headers
         if (!record.excelData[3]) {
