@@ -192,6 +192,15 @@ function initializeWebSocket() {
         }
     });
 
+    socket.on('cell_updated', (data) => {
+        if (currentOpenRecordId === data.recordId && currentSpreadsheet) {
+            // Temporarily flag that we are receiving sync so we don't create an infinite loop
+            isReceivingSync = true;
+            currentSpreadsheet.setValue(data.cellRef, data.value);
+            isReceivingSync = false;
+        }
+    });
+
     // Auto-refresh records every 5 seconds to show updates from other users
     setInterval(() => {
         if (currentTab && document.getElementById('resultsContainer')) {
@@ -578,6 +587,7 @@ let currentSpreadsheet = null;
 let isFullScreen = false;
 let isMinimized = false;
 let expandedSidebar = { "Reimbursement": true, "Liquidation": true };
+let isReceivingSync = false;
 
 const now = new Date();
 mockDatabase = mockDatabase.filter(recordData => {
