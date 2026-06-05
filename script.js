@@ -192,12 +192,26 @@ function initializeWebSocket() {
         }
     });
 
+    // Listen for instant cell edits from other users
     socket.on('cell_updated', (data) => {
-        if (currentOpenRecordId === data.recordId && currentSpreadsheet) {
-            // Temporarily flag that we are receiving sync so we don't create an infinite loop
-            isReceivingSync = true;
-            currentSpreadsheet.setValue(data.cellRef, data.value);
-            isReceivingSync = false;
+        // 1. Find the target record using the universal database API ID
+        const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
+        
+        if (targetRecord) {
+            // 2. Invisibly update the background excelData so it is saved even if their window is closed!
+            if (!targetRecord.excelData) targetRecord.excelData = [];
+            while (targetRecord.excelData.length <= data.y) {
+                targetRecord.excelData.push([]);
+            }
+            targetRecord.excelData[data.y][data.x] = data.value;
+            saveToMemory(); // Persist instantly to the browser cache
+
+            // 3. If they currently have this exact spreadsheet open, type the letters on their screen
+            if (currentOpenRecordId === targetRecord.id && currentSpreadsheet) {
+                isReceivingSync = true;
+                currentSpreadsheet.setValue(data.cellRef, data.value);
+                isReceivingSync = false;
+            }
         }
     });
 
@@ -587,7 +601,7 @@ let currentSpreadsheet = null;
 let isFullScreen = false;
 let isMinimized = false;
 let expandedSidebar = { "Reimbursement": true, "Liquidation": true };
-let isReceivingSync = false;
+let isReceivingSync = false; // Prevents infinite loops during websocket updates
 
 const now = new Date();
 mockDatabase = mockDatabase.filter(recordData => {
@@ -704,8 +718,14 @@ function createNavBtn(type, year, count) {
 }
 
 function updateTopButtons() {
-    document.getElementById('addNewBtn').style.display = (currentTab === 'Bin') ? 'none' : 'inline-block';
-    document.getElementById('emptyBinBtn').style.display = (currentTab === 'Bin') ? 'inline-block' : 'none';
+    const isBin = currentTab === 'Bin';
+    const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
+    
+    // Hide the 'Add New Record' button if viewing the Bin OR if the user is just Staff
+    document.getElementById('addNewBtn').style.display = (isBin || isStaff) ? 'none' : 'inline-block';
+    
+    // Only Supervisors can empty the recycle bin
+    document.getElementById('emptyBinBtn').style.display = (isBin && !isStaff) ? 'inline-block' : 'none';
 }
 
 function updateDashboard(results) {
@@ -1028,7 +1048,7 @@ function openModal(id) {
         columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
     }
 
-   let loadingSpreadsheet = true; 
+    let loadingSpreadsheet = true; 
     
     // 1. Determine if the current viewer is a restricted Staff Auditor
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
@@ -1060,26 +1080,36 @@ function openModal(id) {
         mergeCells: record.mergeCells || {}, 
         responsive: true,
         onchange: function(instance, cell, x, y, value) {
-            if (loadingSpreadsheet) return; 
+            // Prevent looping when loading or receiving real-time sync from others
+            if (loadingSpreadsheet || isReceivingSync) return; 
             if (!record.api_id) return; 
             
             const colLetter = String.fromCharCode(65 + parseInt(x));
             const rowNum = parseInt(y) + 1;
             const cellRef = `${colLetter}${rowNum}`;
             
+            // Instantly beam this cell change using the UNIVERSAL database ID
+            if (socketConnected && socket) {
+                socket.emit('cell_edit', {
+                    recordApiId: record.api_id, 
+                    cellRef: cellRef,
+                    x: parseInt(x),
+                    y: parseInt(y),
+                    value: value
+                });
+            }
+            
             const message = value === "" 
                 ? `System: Cleared cell ${cellRef}` 
                 : `System: Updated Excel cell ${cellRef} to "${value}"`;
             
-            // Only send the lightweight log to the server in real-time to prevent server crashes
-            // (The actual heavy Excel data will safely sync when they close the modal)
+            // Send lightweight audit log to the backend
             sendCommentToServer(record.api_id, message, (success) => {
                 if (!success) console.error(`Failed to log cell edit: ${cellRef}`);
             });
         }
     });
     loadingSpreadsheet = false;
-
 }
 
 // Detect changes in Excel data and create audit log entries
@@ -1553,7 +1583,8 @@ async function loadUsersList() {
                         </td>
                         <td style="padding: 10px;">
                             ${!isMe && user.is_active ? 
-                                `<button onclick="deactivateAccount(${user.id})" class="danger-btn" style="padding: 4px 8px; font-size: 12px;">Deactivate</button>` 
+                                `<button onclick="resetUserPassword(${user.id}, '${user.username}')" style="padding: 4px 8px; font-size: 12px; background: #d97706; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">Reset Pass</button>
+                                 <button onclick="deactivateAccount(${user.id})" class="danger-btn" style="padding: 4px 8px; font-size: 12px;">Deactivate</button>` 
                                 : ''}
                         </td>
                     </tr>
@@ -1613,6 +1644,24 @@ async function deactivateAccount(userId) {
             loadUsersList(); 
         } else {
             alert("Failed to deactivate account.");
+        }
+    } catch (error) {
+        alert("Connection error.");
+    }
+}
+
+async function resetUserPassword(userId, username) {
+    if (!confirm(`Are you sure you want to reset the password for ${username}?\n\nTheir new password will become: temp123`)) {
+        return;
+    }
+    
+    try {
+        const response = await apiCall(`/auth/admin-reset-password/${userId}`, { method: 'POST' });
+        
+        if (response.ok) {
+            alert(`SUCCESS: Password for ${username} has been reset to: temp123`);
+        } else {
+            alert("Failed to reset password.");
         }
     } catch (error) {
         alert("Connection error.");
