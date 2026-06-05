@@ -988,6 +988,12 @@ function openModal(id) {
     if (!record.style) record.style = {};
     columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
 
+    // Self-healing: Always enforce merged cells for the top 3 title rows
+    if (!record.mergeCells) record.mergeCells = {};
+    record.mergeCells['A1'] = [20, 1];
+    record.mergeCells['A2'] = [20, 1];
+    record.mergeCells['A3'] = [20, 1];
+
     const columnConfig = [];
     for (let i = 0; i < 20; i++) {
         // Column 12 (M) is Auditor - removed the custom title
