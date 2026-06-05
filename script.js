@@ -144,27 +144,19 @@ function initializeWebSocket() {
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // ... (keep the existing background update code here) ...
+            // Update the background data
+            if (!targetRecord.excelData) targetRecord.excelData = [];
+            while (targetRecord.excelData.length <= data.y) targetRecord.excelData.push(Array(20).fill(""));
             targetRecord.excelData[data.y][data.x] = data.value;
             saveToMemory();
 
+            // If the modal is OPEN, update the UI live!
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
                 isReceivingSync = true;
                 
-                // Drop lock to write
-                const colIndex = parseInt(data.x);
-                let wasReadOnly = false;
-                if (currentSpreadsheet.options.columns[colIndex]?.readOnly) {
-                    wasReadOnly = true;
-                    currentSpreadsheet.options.columns[colIndex].readOnly = false;
-                }
-                
+                // Set the value directly in the Jspreadsheet instance
+                // The 'true' at the end tells it to update the visual UI automatically
                 currentSpreadsheet.setValue(data.cellRef, data.value, true);
-                
-                // ---> THE MISSING LINK: FORCE THE SPREADSHEET TO ACKNOWLEDGE THE CHANGE <---
-                currentSpreadsheet.refresh(); 
-                
-                if (wasReadOnly) currentSpreadsheet.options.columns[colIndex].readOnly = true;
                 
                 isReceivingSync = false;
             }
