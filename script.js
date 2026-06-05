@@ -952,9 +952,12 @@ function openModal(id) {
         
         record.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
         record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
-        const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
-        columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
     }
+    
+    // Always ensure row 4 (headers) is yellow for ALL records
+    if (!record.style) record.style = {};
+    const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
+    columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
 
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
     const columnConfig = [];
@@ -1003,15 +1006,7 @@ for (let i = 0; i < 20; i++) {
             value: value
         });
     }
-    // STOP! If you see 'sendCommentToServer' or 'detectAndLogChanges' here, DELETE IT.
-
-            const message = value === "" 
-                ? `System: Cleared cell ${cellRef}` 
-                : `System: Updated Excel cell ${cellRef} to "${value}"`;
-            
-            sendCommentToServer(record.api_id, message, (success) => {
-                if (!success) console.error(`Failed to log cell edit: ${cellRef}`);
-            });
+    // Logging only happens once in closeModal via detectAndLogChanges - NOT here to prevent spam
         }
     });
 }
