@@ -999,22 +999,20 @@ for (let i = 0; i < 20; i++) {
     if (isReceivingSync) return; 
     hasUnsavedLocalChanges = true;
 
-    // Broadcasting to other users remains instant
     const colLetter = String.fromCharCode(65 + parseInt(x));
     const cellRef = `${colLetter}${parseInt(y) + 1}`;
-    socket.emit('cell_edit', { recordApiId: record.api_id, cellRef, x, y, value });
-            
-            if (socketConnected && socket) {
-                console.log("🚀 Emitting live cell edit to server:", cellRef, value);
-                socket.emit('cell_edit', {
-                    recordApiId: record.api_id, 
-                    cellRef: cellRef,
-                    x: parseInt(x),
-                    y: parseInt(y),
-                    value: value
-                });
-            }
-            
+    
+    // This handles real-time sync ONLY (No spammy logging here!)
+    if (socketConnected && socket) {
+        socket.emit('cell_edit', {
+            recordApiId: record.api_id,
+            cellRef: cellRef,
+            x: parseInt(x),
+            y: parseInt(y),
+            value: value
+        });
+    }
+
             const message = value === "" 
                 ? `System: Cleared cell ${cellRef}` 
                 : `System: Updated Excel cell ${cellRef} to "${value}"`;
@@ -1089,37 +1087,26 @@ function toggleAuditLog() {
     }
 }
 
-async function closeModal() { // <--- Added 'async' here
+async function closeModal() {
     if (currentSpreadsheet && currentOpenRecordId) {
-        // 1. Force the spreadsheet to finalize the current cell's value
+        // Force grid to accept changes
         currentSpreadsheet.refresh(); 
 
         if (hasUnsavedLocalChanges) {
             const record = mockDatabase.find(item => item.id === currentOpenRecordId);
             if (record) {
-                const newExcelData = currentSpreadsheet.getData();
-                
-                detectAndLogChanges(record, newExcelData);
-                
-                record.excelData = newExcelData;
-                record.headers = currentSpreadsheet.getHeaders().split(',');
+                record.excelData = currentSpreadsheet.getData();
                 record.style = currentSpreadsheet.getStyle();
-                record.mergeCells = currentSpreadsheet.getConfig().mergeCells || {};
                 
-                // 2. Await the server save so it finishes before we close the window
+                // await ensures this finishes before the window closes
                 await updateRecordOnServer(record, 'Excel data updated');
             }
         }
-    } else {
-        console.log("No modifications detected or no record open.");
     }
-    
-    saveToMemory();
     document.getElementById('fileModal').style.display = 'none';
     currentOpenRecordId = null;
-    hasUnsavedLocalChanges = false; 
+    hasUnsavedLocalChanges = false;
 }
-
 function changeRecordStatus(newStatus) {
     const record = mockDatabase.find(item => item.id === currentOpenRecordId);
     if (record && record.status !== newStatus) {
