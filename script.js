@@ -793,7 +793,7 @@ async function submitNewRecord(event) {
                 rowData
             ];
             
-            newRecord.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
+            newRecord.mergeCells = {};
             newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
             const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
             columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
@@ -953,7 +953,7 @@ function openModal(id) {
             Array(20).fill("")
         ];
         
-        record.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
+        record.mergeCells = {};
         record.style = {};
         
         // Apply center alignment and bold to rows 1-3 across ALL columns
