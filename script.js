@@ -930,17 +930,18 @@ function openModal(id) {
     container.innerHTML = "";
     if (currentSpreadsheet) currentSpreadsheet.destroy();
 
+    // Define headers
+    const headers = [
+        "No.", "Check Date", "Check Number", "Accountable Person", "Transaction Type", 
+        "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Location", 
+        "Approved Budget", "Amount", "Auditor", "Date Assigned", "Date Audited", 
+        "Audit Result", "Date forwarded to the Chief", "Reviewed by \\ Comments", 
+        "Reviewed by \\ Dates", "Remarks"
+    ];
+
     if (!record.excelData || record.excelData.length === 0) {
         const title = `SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`;
         const formattedDate = record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }) : new Date().toLocaleDateString();
-        
-        const headers = [
-            "No.", "Check Date", "Check Number", "Accountable Person", "Transaction Type", 
-            "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Location", 
-            "Approved Budget", "Amount", "Auditor", "Date Assigned", "Date Audited", 
-            "Audit Result", "Date forwarded to the Chief", "Reviewed by \\ Comments", 
-            "Reviewed by \\ Dates", "Remarks"
-        ];
         
         record.excelData = [
             [title, ...Array(19).fill("")], 
@@ -952,6 +953,9 @@ function openModal(id) {
         
         record.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
         record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
+    } else if (!record.excelData[3] || record.excelData[3].some(cell => !cell || cell.trim() === "")) {
+        // For existing records, ensure row 4 has the headers
+        record.excelData[3] = headers;
     }
     
     // Always ensure row 4 (headers) is yellow for ALL records
