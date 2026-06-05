@@ -1004,6 +1004,14 @@ for (let i = 0; i < 20; i++) {
     const colLetter = String.fromCharCode(65 + parseInt(x));
     const cellRef = `${colLetter}${parseInt(y) + 1}`;
     
+    // Reapply row 4 yellow styling to prevent it from disappearing
+    if (y !== 3) {
+        const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
+        columns.forEach((col, idx) => {
+            currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
+        });
+    }
+    
     // BROADCAST ONLY. No logging/comments here.
     if (socketConnected && socket) {
         socket.emit('cell_edit', {
@@ -1017,6 +1025,14 @@ for (let i = 0; i < 20; i++) {
     // Logging only happens once in closeModal via detectAndLogChanges - NOT here to prevent spam
         }
     });
+    
+    // Force set the row 4 styles after spreadsheet is created
+    setTimeout(() => {
+        const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
+        columns.forEach(col => {
+            currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
+        });
+    }, 100);
 }
 
 function detectAndLogChanges(record, newData) {
