@@ -83,6 +83,29 @@ router.post('/deactivate-user/:userId', authenticateToken, requireRole('Audit Su
     }
 });
 
+// --- ADMIN: FORCE RESET STAFF PASSWORD ---
+router.post('/admin-reset-password/:id', async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const tempPassword = 'temp123'; // The default temporary password
+        
+        // Encrypt the new temporary password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(tempPassword, salt);
+        
+        // Update it in the database
+        await pool.query(
+            'UPDATE users SET password_hash = $1 WHERE id = $2', 
+            [hashedPassword, userId]
+        );
+        
+        res.json({ message: 'Password reset to temp123' });
+    } catch (error) {
+        console.error('Password reset error:', error);
+        res.status(500).json({ error: 'Server error resetting password' });
+    }
+});
+
 // Fetch active usernames for the login dropdown (No passwords exposed!)
 router.get('/public-users', async (req, res) => {
     try {
