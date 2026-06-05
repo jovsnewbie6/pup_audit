@@ -22,7 +22,6 @@ function initializeWebSocket() {
         console.log('✅ Connected to server via WebSocket');
         console.log('Socket ID:', socket.id);
         showNotification('🔗 Connected to real-time sync');
-        // Stop polling if Socket.io is working
         if (pollInterval) {
             clearInterval(pollInterval);
             console.log('⏹️ Stopping fallback polling - Socket.io is active');
@@ -34,7 +33,6 @@ function initializeWebSocket() {
         socketConnected = false;
         console.log('❌ Disconnected from server');
         showNotification('⚠️ Lost real-time connection - using fallback sync');
-        // Start polling if Socket.io disconnects
         if (!pollInterval) {
             startFallbackPolling();
         }
@@ -42,7 +40,6 @@ function initializeWebSocket() {
 
     socket.on('connect_error', (error) => {
         console.error('❌ WebSocket connection error:', error);
-        // Start polling if Socket.io fails
         if (!pollInterval) {
             startFallbackPolling();
         }
@@ -52,15 +49,12 @@ function initializeWebSocket() {
         console.error('❌ WebSocket error:', error);
     });
 
-    // Fallback polling - check server every 10 seconds if Socket.io isn't connected
     if (!socketConnected) {
         startFallbackPolling();
     }
 
-    // Listen for new records created by other users
     socket.on('recordCreated', (newRecord) => {
         console.log('📨 Socket.io: New record broadcast received from server');
-        
         const exists = mockDatabase.some(r => r.id === newRecord.id || r.serial === newRecord.serial);
         
         if (!exists) {
@@ -103,7 +97,6 @@ function initializeWebSocket() {
         }
     });
 
-    // Listen for record updates (status changes, approvals, etc.)
     socket.on('recordUpdated', (updatedRecord) => {
         const recordIndex = mockDatabase.findIndex(r => r.id === updatedRecord.id || r.api_id === updatedRecord.id);
         if (recordIndex !== -1) {
@@ -129,7 +122,6 @@ function initializeWebSocket() {
         }
     });
 
-    // Listen for record deletions from other users
     socket.on('recordDeleted', (deletedRecord) => {
         const recordIndex = mockDatabase.findIndex(r => 
             r.id === deletedRecord.id || 
@@ -152,7 +144,6 @@ function initializeWebSocket() {
         }
     });
 
-    // Listen for new audit logs/comments added by other users
     socket.on('logAdded', (event) => {
         if (currentOpenRecordId === event.recordId) {
             const logContainer = document.getElementById('logHistory');
@@ -168,14 +159,10 @@ function initializeWebSocket() {
         }
     });
 
-    // ---> THE FIX: REAL-TIME CELL SYNC <---
-    // This listens for instant cell edits and dynamically drops the UI lock to accept incoming data
     socket.on('cell_updated', (data) => {
-        console.log("📥 Live sync received for cell:", data.cellRef);
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // 1. Update the invisible background array first so we NEVER lose data
             if (!targetRecord.excelData) targetRecord.excelData = [];
             while (targetRecord.excelData.length <= data.y) {
                 targetRecord.excelData.push(Array(20).fill(""));
@@ -183,34 +170,23 @@ function initializeWebSocket() {
             targetRecord.excelData[data.y][data.x] = data.value;
             saveToMemory();
 
-            // 2. If the user currently has this exact file open, forcefully draw the text
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
-                isReceivingSync = true;
-                
-                // BYPASS ROLE SECURITY LOCK FOR INCOMING SOCKET DATA
-                const colIndex = parseInt(data.x);
-                let wasReadOnly = false;
-                
-                // Check if the current user is locked out of this column
-                if (currentSpreadsheet.options.columns && currentSpreadsheet.options.columns[colIndex] && currentSpreadsheet.options.columns[colIndex].readOnly) {
-                    wasReadOnly = true;
-                    currentSpreadsheet.options.columns[colIndex].readOnly = false; // Drop the shield
+                try {
+                    isReceivingSync = true;
+                    if (typeof currentSpreadsheet.setValueFromCoords === 'function') {
+                        currentSpreadsheet.setValueFromCoords(data.x, data.y, data.value, true);
+                    } else {
+                        currentSpreadsheet.setValue(data.cellRef, data.value, true);
+                    }
+                } catch (e) {
+                    console.error('Cell sync render error:', e);
+                } finally {
+                    isReceivingSync = false;
                 }
-                
-                // Draw the text
-                currentSpreadsheet.setValue(data.cellRef, data.value);
-                
-                // Reactivate the security shield immediately
-                if (wasReadOnly) {
-                    currentSpreadsheet.options.columns[colIndex].readOnly = true; 
-                }
-                
-                isReceivingSync = false;
             }
         }
     });
 
-    // Auto-refresh records every 5 seconds to show updates from other users
     setInterval(() => {
         if (currentTab && document.getElementById('resultsContainer')) {
             searchRecords();
@@ -218,7 +194,6 @@ function initializeWebSocket() {
     }, 5000);
 }
 
-// Fallback polling if Socket.io doesn't work
 function startFallbackPolling() {
     if (pollInterval) return; 
     
@@ -278,7 +253,6 @@ function showNotification(message) {
     }, 4000);
 }
 
-// Add animation styles if they don't exist
 if (!document.querySelector('style[data-websocket-animations]')) {
     const style = document.createElement('style');
     style.setAttribute('data-websocket-animations', 'true');
@@ -486,22 +460,29 @@ async function loadRecordsFromAPI() {
         if (response.ok) {
             const records = await response.json();
             
-            return records.map(record => ({
-                id: record.id || Date.now(),
-                serial: record.serial || record.serial_number || "Unknown Serial",
-                type: record.type || record.record_type || "Reimbursement",
-                name: record.name || record.record_name || "Untitled Record",
-                date: record.date || (record.created_at ? record.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
-                summary: record.summary || `Audit record for ${record.name || record.record_name}`,
-                status: record.status || "Pending",
-                logs: record.logs || [],
-                excelData: record.excelData || record.excel_data || null,
-                style: record.style || {},
-                mergeCells: record.mergeCells || record.merge_cells || null,
-                deleted: record.deleted || record.is_deleted || false,
-                deletedAt: record.deletedAt || record.deleted_at || null,
-                api_id: record.id
-            }));
+            return records.map(record => {
+                let parsedData = {};
+                if (record.data) {
+                    parsedData = typeof record.data === 'string' ? JSON.parse(record.data) : record.data;
+                }
+
+                return {
+                    id: record.id || Date.now(),
+                    serial: record.serial || record.serial_number || "Unknown Serial",
+                    type: record.type || record.record_type || "Reimbursement",
+                    name: record.name || record.record_name || "Untitled Record",
+                    date: parsedData.date || (record.created_at ? record.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+                    summary: parsedData.summary || `Audit record for ${record.name || record.record_name}`,
+                    status: parsedData.status || record.status || "Pending",
+                    logs: record.logs || [],
+                    excelData: parsedData.excelData || record.excel_data || null,
+                    style: record.style || {},
+                    mergeCells: record.mergeCells || record.merge_cells || null,
+                    deleted: record.deleted || record.is_deleted || false,
+                    deletedAt: record.deletedAt || record.deleted_at || null,
+                    api_id: record.id
+                };
+            });
         }
     } catch (error) {
         return null;
@@ -1005,7 +986,6 @@ function openModal(id) {
             const rowNum = parseInt(y) + 1;
             const cellRef = `${colLetter}${rowNum}`;
             
-            // Instantly beam this cell change to the relay
             if (socketConnected && socket) {
                 socket.emit('cell_edit', {
                     recordApiId: record.api_id, 
