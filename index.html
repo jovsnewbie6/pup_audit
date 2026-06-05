@@ -15,8 +15,7 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
-    <!-- AUTH SCREENS -->
-   <div id="authContainer" class="auth-container">
+    <div id="authContainer" class="auth-container">
     <div class="auth-box">
         <div id="loginScreen" class="active">
             <h2>PUP Internal Audit</h2>
@@ -52,7 +51,6 @@
         </div>
     </div>
 </div>
-    <!-- MAIN APP -->
     <div id="appContainer" class="layout" style="display: none;">
         <aside class="sidebar">
             <h2 class="logo">PUP Audit</h2>
@@ -177,7 +175,20 @@
                     <div class="form-group"><label>Inclusive Dates</label><input type="text" id="f_incDates"></div>
                     <div class="form-group"><label>Amount Granted</label><input type="text" id="f_amtGranted"></div>
                     <div class="form-group"><label>Amount</label><input type="text" id="f_amtLiq"></div>
-                    <div class="form-group"><label>Auditor</label><input type="text" id="f_auditor"></div>
+                    
+                    <div class="form-group">
+                        <label>Auditor</label>
+                        <select id="f_auditor">
+                            <option value="" disabled selected>Select an auditor...</option>
+                            <option value="Anjo Almoroto">Anjo Almoroto</option>
+                            <option value="Edilmira Maya">Edilmira Maya</option>
+                            <option value="Melissa Campanero">Melissa Campanero</option>
+                            <option value="Milagros Santos">Milagros Santos</option>
+                            <option value="Sarah Jane Guevarra">Sarah Jane Guevarra</option>
+                            <option value="Jake Binuya">Jake Binuya</option>
+                        </select>
+                    </div>
+
                     <div class="form-group full-width"><label>Date Assign</label><input type="date" id="f_dateAssign"></div>
                 </div>
 
@@ -205,7 +216,20 @@
                     <div class="form-group"><label>Inclusive Dates</label><input type="text" id="r_incDates"></div>
                     <div class="form-group"><label>Amount Granted</label><input type="text" id="r_amtGranted"></div>
                     <div class="form-group"><label>Amount</label><input type="text" id="r_amtLiq"></div>
-                    <div class="form-group"><label>Auditor</label><input type="text" id="r_auditor"></div>
+                    
+                    <div class="form-group">
+                        <label>Auditor</label>
+                        <select id="r_auditor">
+                            <option value="" disabled selected>Select an auditor...</option>
+                            <option value="Anjo Almoroto">Anjo Almoroto</option>
+                            <option value="Edilmira Maya">Edilmira Maya</option>
+                            <option value="Melissa Campanero">Melissa Campanero</option>
+                            <option value="Milagros Santos">Milagros Santos</option>
+                            <option value="Sarah Jane Guevarra">Sarah Jane Guevarra</option>
+                            <option value="Jake Binuya">Jake Binuya</option>
+                        </select>
+                    </div>
+
                     <div class="form-group full-width"><label>Date Assign</label><input type="date" id="r_dateAssign"></div>
                 </div>
 
@@ -252,8 +276,7 @@
     </div>
 </div>
 
-    <!-- PASSWORD CHANGE MODAL -->
-<div id="settingsModal" class="modal">
+    <div id="settingsModal" class="modal">
     <div class="modal-content" style="max-width: 600px;">
         <span class="close-btn" onclick="closeSettingsModal()">&times;</span>
         <h2>User Settings</h2>
@@ -287,8 +310,6 @@
 </div>
 
     </div>
-
-
 
     <script src="script.js"></script>
     <script>
