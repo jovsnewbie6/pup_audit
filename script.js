@@ -953,9 +953,14 @@ function openModal(id) {
         
         record.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
         record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
-    } else if (!record.excelData[3] || record.excelData[3].some(cell => !cell || cell.trim() === "")) {
-        // For existing records, ensure row 4 has the headers
-        record.excelData[3] = headers;
+    } else {
+        // For existing records, always ensure row 4 has complete headers
+        if (!record.excelData[3]) {
+            record.excelData[3] = headers;
+        } else {
+            // Ensure all 20 columns in row 4 are filled with headers
+            record.excelData[3] = headers.map((h, i) => h || record.excelData[3][i] || "");
+        }
     }
     
     // Always ensure row 4 (headers) is yellow for ALL records
