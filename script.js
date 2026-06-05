@@ -961,21 +961,26 @@ function openModal(id) {
 
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
     const columnConfig = [];
-    
-    // NEW DROPDOWN LOGIC
-    for (let i = 0; i < 20; i++) {
-        if (i === 12) { // 13th Column is Auditor
-            columnConfig.push({
-                type: 'dropdown',
-                source: ['Anjo Almoroto', 'Edilmira Maya', 'Melissa Campanero', 'Milagros Santos', 'Sarah Jane Guevarra', 'Jake Binuya'],
-                width: 150,
-                readOnly: isStaff && i <= 13 
-            });
-        } else {
-            columnConfig.push({ type: 'text', width: 140, readOnly: isStaff && i <= 13 });
-        }
-    }
 
+// We define 20 columns explicitly to match your template
+for (let i = 0; i < 20; i++) {
+    // Column 12 is the 13th column (Auditor)
+    if (i === 12) { 
+        columnConfig.push({
+            type: 'dropdown',
+            title: 'Auditor', // Explicitly setting the title
+            source: ['Anjo Almoroto', 'Edilmira Maya', 'Melissa Campanero', 'Milagros Santos', 'Sarah Jane Guevarra', 'Jake Binuya'],
+            width: 150,
+            readOnly: isStaff
+        });
+    } else {
+        columnConfig.push({ 
+            type: 'text', 
+            width: 140, 
+            readOnly: isStaff && i <= 13 // Locks everything up to column 14 for staff
+        });
+    }
+}
     currentSpreadsheet = jspreadsheet(container, {
         data: record.excelData,
         minDimensions: [20, 20], 
@@ -991,14 +996,13 @@ function openModal(id) {
         mergeCells: record.mergeCells || {}, 
         responsive: true,
         onchange: function(instance, cell, x, y, value) {
-            if (isReceivingSync) return; 
-            if (!record.api_id) return; 
-            
-            hasUnsavedLocalChanges = true; 
+    if (isReceivingSync) return; 
+    hasUnsavedLocalChanges = true;
 
-            const colLetter = String.fromCharCode(65 + parseInt(x));
-            const rowNum = parseInt(y) + 1;
-            const cellRef = `${colLetter}${rowNum}`;
+    // Broadcasting to other users remains instant
+    const colLetter = String.fromCharCode(65 + parseInt(x));
+    const cellRef = `${colLetter}${parseInt(y) + 1}`;
+    socket.emit('cell_edit', { recordApiId: record.api_id, cellRef, x, y, value });
             
             if (socketConnected && socket) {
                 console.log("🚀 Emitting live cell edit to server:", cellRef, value);
@@ -1085,23 +1089,29 @@ function toggleAuditLog() {
     }
 }
 
-function closeModal() {
-    if (currentSpreadsheet && currentOpenRecordId && hasUnsavedLocalChanges) {
-        const record = mockDatabase.find(item => item.id === currentOpenRecordId);
-        if (record) {
-            const newExcelData = currentSpreadsheet.getData();
-            
-            detectAndLogChanges(record, newExcelData);
-            
-            record.excelData = newExcelData;
-            record.headers = currentSpreadsheet.getHeaders().split(',');
-            record.style = currentSpreadsheet.getStyle();
-            record.mergeCells = currentSpreadsheet.getConfig().mergeCells || {};
-            
-            updateRecordOnServer(record, 'Excel data updated');
+async function closeModal() { // <--- Added 'async' here
+    if (currentSpreadsheet && currentOpenRecordId) {
+        // 1. Force the spreadsheet to finalize the current cell's value
+        currentSpreadsheet.refresh(); 
+
+        if (hasUnsavedLocalChanges) {
+            const record = mockDatabase.find(item => item.id === currentOpenRecordId);
+            if (record) {
+                const newExcelData = currentSpreadsheet.getData();
+                
+                detectAndLogChanges(record, newExcelData);
+                
+                record.excelData = newExcelData;
+                record.headers = currentSpreadsheet.getHeaders().split(',');
+                record.style = currentSpreadsheet.getStyle();
+                record.mergeCells = currentSpreadsheet.getConfig().mergeCells || {};
+                
+                // 2. Await the server save so it finishes before we close the window
+                await updateRecordOnServer(record, 'Excel data updated');
+            }
         }
     } else {
-        console.log("No local modifications detected. Window closed safely without triggering server overwrite.");
+        console.log("No modifications detected or no record open.");
     }
     
     saveToMemory();
@@ -1693,4 +1703,4 @@ async function updateRecordOnServer(record, comment = '') {
         saveToMemory();
         return false;
     }
-}
+}  
