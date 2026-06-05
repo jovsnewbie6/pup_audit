@@ -144,21 +144,24 @@ function initializeWebSocket() {
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // Update the background data
+            // Update the underlying data array
             if (!targetRecord.excelData) targetRecord.excelData = [];
             while (targetRecord.excelData.length <= data.y) targetRecord.excelData.push(Array(20).fill(""));
             targetRecord.excelData[data.y][data.x] = data.value;
             saveToMemory();
 
-            // If the modal is OPEN, update the UI live!
+            // If the user currently has this exact record open, update their screen LIVE
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
                 isReceivingSync = true;
                 
-                // Set the value directly in the Jspreadsheet instance
-                // The 'true' at the end tells it to update the visual UI automatically
+                // 1. Force the value into the UI
                 currentSpreadsheet.setValue(data.cellRef, data.value, true);
                 
+                // 2. Force a visual refresh to ensure the cell isn't stuck
+                currentSpreadsheet.refresh(); 
+                
                 isReceivingSync = false;
+                console.log("DEBUG: Data injected and spreadsheet refreshed."); // ADD THIS LINE
             }
         }
     });
