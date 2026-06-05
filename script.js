@@ -786,14 +786,14 @@ async function submitNewRecord(event) {
             ];
             
             newRecord.excelData = [
-                [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S\nFor the Fiscal Year ${yearStr}\nAs of ${formattedDate}`, ...Array(19).fill("")],
-                Array(20).fill(""),
-                Array(20).fill(""),
+                [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S\nFor the Fiscal Year ${yearStr}\nAs of ${formattedDate}`],
+                [],
+                [],
                 headers, 
                 rowData
             ];
             
-            newRecord.mergeCells = { A1: [1, 3] };
+            newRecord.mergeCells = {};
             newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 14px; color: black; vertical-align: middle;' };
             const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
             columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
@@ -946,14 +946,14 @@ function openModal(id) {
         const formattedDate = record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }) : new Date().toLocaleDateString();
         
         record.excelData = [
-            [`${title}\nFor the Fiscal Year ${new Date().getFullYear()}\nAs of ${formattedDate}`, ...Array(19).fill("")], 
-            Array(20).fill(""),
-            Array(20).fill(""),
+            [`${title}\nFor the Fiscal Year ${new Date().getFullYear()}\nAs of ${formattedDate}`],
+            [],
+            [],
             headers, 
             Array(20).fill("")
         ];
         
-        record.mergeCells = { A1: [1, 3] };
+        record.mergeCells = {};
         record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 14px; color: black; vertical-align: middle;' };
     } else {
         // For existing records, always ensure row 4 has complete headers
