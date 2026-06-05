@@ -52,6 +52,11 @@ io.on('connection', (socket) => {
     console.log('   Socket ID:', socket.id);
     console.log('   Total connected clients:', Object.keys(io.sockets.sockets).length);
 
+    // ---> NEW: Instant Google-Docs style cell relay <---
+    socket.on('cell_edit', (data) => {
+        socket.broadcast.emit('cell_updated', data);
+    });
+
     socket.on('disconnect', () => {
         console.log('🔌 Client disconnected:', socket.id);
         console.log('   Remaining connected clients:', Object.keys(io.sockets.sockets).length);

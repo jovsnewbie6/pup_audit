@@ -144,24 +144,28 @@ function initializeWebSocket() {
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // Update the underlying data array
+            // 1. Update background data
             if (!targetRecord.excelData) targetRecord.excelData = [];
             while (targetRecord.excelData.length <= data.y) targetRecord.excelData.push(Array(20).fill(""));
             targetRecord.excelData[data.y][data.x] = data.value;
             saveToMemory();
 
-            // If the user currently has this exact record open, update their screen LIVE
+            // 2. LIVE UI INJECTION
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
                 isReceivingSync = true;
                 
-                // 1. Force the value into the UI
+                // FORCE THE UPDATE: This tells the library to physically re-draw the cell
+                // Using .updateSelection() or .setValue() with the force parameter
                 currentSpreadsheet.setValue(data.cellRef, data.value, true);
                 
-                // 2. Force a visual refresh to ensure the cell isn't stuck
-                currentSpreadsheet.refresh(); 
+                // Manually trigger the redraw for this specific cell
+                const cellElement = currentSpreadsheet.getCell(data.cellRef);
+                if (cellElement) {
+                    cellElement.innerText = data.value;
+                }
                 
                 isReceivingSync = false;
-                console.log("DEBUG: Data injected and spreadsheet refreshed."); // ADD THIS LINE
+                console.log("Successfully injected live change to UI:", data.cellRef);
             }
         }
     });
@@ -1659,3 +1663,4 @@ async function updateRecordOnServer(record, comment = '') {
     }
 }
 //Force trigger for Update
+
