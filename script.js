@@ -794,7 +794,7 @@ async function submitNewRecord(event) {
             ];
             
             newRecord.mergeCells = {};
-            newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
+            newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px; color: black;', 'A2': 'text-align: center; font-weight: bold; color: black;', 'A3': 'text-align: center; font-weight: bold; color: black;' };
             const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
             columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
             
@@ -954,7 +954,7 @@ function openModal(id) {
         ];
         
         record.mergeCells = {};
-        record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
+        record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px; color: black;', 'A2': 'text-align: center; font-weight: bold; color: black;', 'A3': 'text-align: center; font-weight: bold; color: black;' };
     } else {
         // For existing records, always ensure row 4 has complete headers
         if (!record.excelData[3]) {
