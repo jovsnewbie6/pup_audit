@@ -60,11 +60,8 @@ function initializeWebSocket() {
     // Listen for new records created by other users
     socket.on('recordCreated', (newRecord) => {
         console.log('📨 Socket.io: New record broadcast received from server');
-        console.log('   Record:', newRecord);
         
-        // Add the new record to mockDatabase if it's not already there
         const exists = mockDatabase.some(r => r.id === newRecord.id || r.serial === newRecord.serial);
-        console.log('   Already exists in local DB?', exists);
         
         if (!exists) {
             const formattedRecord = {
@@ -84,7 +81,6 @@ function initializeWebSocket() {
                 api_id: newRecord.id
             };
             
-            // Try to parse data if it's a JSON string
             if (newRecord.data) {
                 try {
                     const parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
@@ -98,31 +94,21 @@ function initializeWebSocket() {
             }
             
             mockDatabase.push(formattedRecord);
-            console.log('✅ Record added to local database. Total records:', mockDatabase.length);
             saveToMemory();
             
-            // Refresh the UI if we're viewing the same record type
             if (currentTab === newRecord.type) {
-                console.log('📊 Refreshing UI because currentTab matches');
                 searchRecords();
                 showNotification(`✨ New ${newRecord.type} record: ${newRecord.name}`);
-            } else {
-                console.log('⚠️ Not refreshing UI - viewing different tab:', currentTab, 'vs', newRecord.type);
             }
-        } else {
-            console.log('⚠️ Record already exists locally, skipping');
         }
     });
 
     // Listen for record updates (status changes, approvals, etc.)
     socket.on('recordUpdated', (updatedRecord) => {
-        console.log('📨 Record updated:', updatedRecord.name);
-        
         const recordIndex = mockDatabase.findIndex(r => r.id === updatedRecord.id || r.api_id === updatedRecord.id);
         if (recordIndex !== -1) {
             mockDatabase[recordIndex].status = updatedRecord.status;
             
-            // Update other fields if provided
             if (updatedRecord.data) {
                 try {
                     const parsedData = typeof updatedRecord.data === 'string' ? JSON.parse(updatedRecord.data) : updatedRecord.data;
@@ -145,9 +131,6 @@ function initializeWebSocket() {
 
     // Listen for record deletions from other users
     socket.on('recordDeleted', (deletedRecord) => {
-        console.log('📨 Record deleted on server:', deletedRecord.id || deletedRecord);
-        
-        // Match by either id or api_id
         const recordIndex = mockDatabase.findIndex(r => 
             r.id === deletedRecord.id || 
             r.api_id === deletedRecord.id ||
@@ -155,29 +138,22 @@ function initializeWebSocket() {
         );
         
         if (recordIndex !== -1) {
-            console.log('✓ Found record in local database, marking as deleted');
             mockDatabase[recordIndex].deleted = true;
             mockDatabase[recordIndex].deletedAt = new Date().toISOString();
             saveToMemory();
             
-            // Refresh the view
             if (currentTab === mockDatabase[recordIndex].type) {
                 searchRecords();
             }
             
             showNotification('A record was moved to the recycle bin');
         } else {
-            console.log('⚠ Record not found in local database, refreshing view');
-            // Refresh the current view
             searchRecords();
         }
     });
 
     // Listen for new audit logs/comments added by other users
     socket.on('logAdded', (event) => {
-        console.log('📨 New audit log received:', event.log.comment);
-        
-        // If the modal is open and it's the same record, add the log to the display
         if (currentOpenRecordId === event.recordId) {
             const logContainer = document.getElementById('logHistory');
             if (logContainer) {
@@ -192,24 +168,43 @@ function initializeWebSocket() {
         }
     });
 
-    // Listen for instant cell edits from other users
+    // ---> THE FIX: REAL-TIME CELL SYNC <---
+    // This listens for instant cell edits and dynamically drops the UI lock to accept incoming data
     socket.on('cell_updated', (data) => {
-        // 1. Find the target record using the universal database API ID
+        console.log("📥 Live sync received for cell:", data.cellRef);
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // 2. Invisibly update the background excelData so it is saved even if their window is closed!
+            // 1. Update the invisible background array first so we NEVER lose data
             if (!targetRecord.excelData) targetRecord.excelData = [];
             while (targetRecord.excelData.length <= data.y) {
-                targetRecord.excelData.push([]);
+                targetRecord.excelData.push(Array(20).fill(""));
             }
             targetRecord.excelData[data.y][data.x] = data.value;
-            saveToMemory(); // Persist instantly to the browser cache
+            saveToMemory();
 
-            // 3. If they currently have this exact spreadsheet open, type the letters on their screen
-            if (currentOpenRecordId === targetRecord.id && currentSpreadsheet) {
+            // 2. If the user currently has this exact file open, forcefully draw the text
+            if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
                 isReceivingSync = true;
+                
+                // BYPASS ROLE SECURITY LOCK FOR INCOMING SOCKET DATA
+                const colIndex = parseInt(data.x);
+                let wasReadOnly = false;
+                
+                // Check if the current user is locked out of this column
+                if (currentSpreadsheet.options.columns && currentSpreadsheet.options.columns[colIndex] && currentSpreadsheet.options.columns[colIndex].readOnly) {
+                    wasReadOnly = true;
+                    currentSpreadsheet.options.columns[colIndex].readOnly = false; // Drop the shield
+                }
+                
+                // Draw the text
                 currentSpreadsheet.setValue(data.cellRef, data.value);
+                
+                // Reactivate the security shield immediately
+                if (wasReadOnly) {
+                    currentSpreadsheet.options.columns[colIndex].readOnly = true; 
+                }
+                
                 isReceivingSync = false;
             }
         }
@@ -225,33 +220,28 @@ function initializeWebSocket() {
 
 // Fallback polling if Socket.io doesn't work
 function startFallbackPolling() {
-    if (pollInterval) return; // Already polling
+    if (pollInterval) return; 
     
     console.log('🔄 Starting fallback polling (Socket.io not connected)');
     pollInterval = setInterval(async () => {
         if (socketConnected) {
-            // Socket.io is now connected, stop polling
             clearInterval(pollInterval);
             pollInterval = null;
-            console.log('✅ Socket.io reconnected, stopping fallback poll');
             return;
         }
         
         if (!currentToken || !document.getElementById('appContainer') || document.getElementById('appContainer').style.display === 'none') {
-            return; // Not logged in or viewing wrong page
+            return; 
         }
         
         try {
-            // Check server for new records
             const freshRecords = await loadRecordsFromAPI();
             if (freshRecords) {
-                // Check if there are any NEW records not in mockDatabase
                 const newRecords = freshRecords.filter(sr => 
                     !mockDatabase.some(lr => lr.api_id === sr.id || lr.id === sr.id)
                 );
                 
                 if (newRecords.length > 0) {
-                    console.log('📥 Fallback poll found', newRecords.length, 'new records');
                     mockDatabase = freshRecords;
                     saveToMemory();
                     if (currentTab && document.getElementById('resultsContainer')) {
@@ -262,11 +252,10 @@ function startFallbackPolling() {
         } catch (error) {
             console.error('Poll error:', error);
         }
-    }, 10000); // Poll every 10 seconds
+    }, 10000); 
 }
 
 function showNotification(message) {
-    // Create a simple notification at the top of the page
     const notification = document.createElement('div');
     notification.style.cssText = `
         position: fixed;
@@ -294,47 +283,23 @@ if (!document.querySelector('style[data-websocket-animations]')) {
     const style = document.createElement('style');
     style.setAttribute('data-websocket-animations', 'true');
     style.textContent = `
-        @keyframes slideIn {
-            from {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        @keyframes slideOut {
-            from {
-                transform: translateX(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-        }
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(400px); opacity: 0; } }
     `;
     document.head.appendChild(style);
 }
 
 // ============ AUTHENTICATION FUNCTIONS ============
 
-// New function to dynamically fetch users
 async function populateLoginDropdown() {
     const dropdown = document.getElementById('loginUsername');
-    // Safety check to make sure the dropdown actually exists on the page
     if (!dropdown || dropdown.tagName !== 'SELECT') return;
 
     try {
         const response = await fetch(`${API_BASE_URL}/auth/public-users`);
         if (response.ok) {
             const users = await response.json();
-            
-            // Clear the old hardcoded HTML options and reset to default
             dropdown.innerHTML = '<option value="" disabled selected>Select your account...</option>';
-            
-            // Loop through the database results and create a new option for each user
             users.forEach(user => {
                 const option = document.createElement('option');
                 option.value = user.username;
@@ -347,12 +312,9 @@ async function populateLoginDropdown() {
     }
 }
 
-// Updated interface function
 function showAuthInterface() {
     document.getElementById('authContainer').style.display = 'flex';
     document.getElementById('appContainer').style.display = 'none';
-    
-    // Call the new function every time the login screen appears!
     populateLoginDropdown(); 
 }
 
@@ -360,12 +322,10 @@ function showMainInterface() {
     document.getElementById('authContainer').style.display = 'none';
     document.getElementById('appContainer').style.display = 'flex';
     
-    // Update user info in header
     if (currentUser) {
         document.getElementById('userName').innerText = currentUser.username;
         document.getElementById('userRole').innerText = currentUser.role;
         
-        // Update role badge color based on role
         const roleEl = document.getElementById('userRole');
         if (currentUser.role === 'Audit Supervisor') {
             roleEl.className = 'role-badge role-supervisor';
@@ -374,7 +334,6 @@ function showMainInterface() {
         }
     }
     
-    // Initialize WebSocket connection when showing main interface
     if (!socket) {
         initializeWebSocket();
     }
@@ -416,7 +375,6 @@ async function handleLogin(event) {
         document.getElementById('loginForm').reset();
         errorEl.textContent = '';
     } catch (error) {
-        console.error('Login error:', error);
         errorEl.textContent = 'Connection error';
     }
 }
@@ -455,7 +413,6 @@ async function handleRegister(event) {
         document.getElementById('registerForm').reset();
         setTimeout(() => switchToLogin(event), 2000);
     } catch (error) {
-        console.error('Register error:', error);
         errorEl.textContent = 'Connection error';
     }
 }
@@ -480,7 +437,6 @@ function handleLogout() {
     showAuthInterface();
 }
 
-// Alias for logout button
 function logout() {
     handleLogout();
 }
@@ -503,7 +459,6 @@ async function apiCall(endpoint, options = {}) {
     try {
         return await fetch(`${API_BASE_URL}${endpoint}`, config);
     } catch (error) {
-        console.error('API call error:', error);
         return null;
     }
 }
@@ -531,7 +486,6 @@ async function loadRecordsFromAPI() {
         if (response.ok) {
             const records = await response.json();
             
-            // This safely translates the database columns into the exact format your frontend needs
             return records.map(record => ({
                 id: record.id || Date.now(),
                 serial: record.serial || record.serial_number || "Unknown Serial",
@@ -550,7 +504,6 @@ async function loadRecordsFromAPI() {
             }));
         }
     } catch (error) {
-        console.error('Failed to load records from API:', error);
         return null;
     }
 }
@@ -601,7 +554,7 @@ let currentSpreadsheet = null;
 let isFullScreen = false;
 let isMinimized = false;
 let expandedSidebar = { "Reimbursement": true, "Liquidation": true };
-let isReceivingSync = false; // Prevents infinite loops during websocket updates
+let isReceivingSync = false; 
 
 const now = new Date();
 mockDatabase = mockDatabase.filter(recordData => {
@@ -614,13 +567,7 @@ mockDatabase = mockDatabase.filter(recordData => {
 
 function saveToMemory() { 
     localStorage.setItem('pupDatabase', JSON.stringify(mockDatabase));
-    
-    if (currentUser && currentToken) {
-        syncRecordsToAPI();
-    }
 }
-
-async function syncRecordsToAPI() {}
 
 function canDeleteRecords() {
     if (!currentUser) return false;
@@ -629,25 +576,16 @@ function canDeleteRecords() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // First, try to load fresh records from the server
     if (currentToken) {
-        console.log('📥 Refreshing records from server...');
         const freshRecords = await loadRecordsFromAPI();
         if (freshRecords && freshRecords.length > 0) {
-            console.log('✅ Loaded', freshRecords.length, 'records from server');
             mockDatabase = freshRecords;
             saveToMemory();
         } else if (freshRecords) {
-            console.log('ℹ️ Server has no records yet');
             mockDatabase = [];
             saveToMemory();
-        } else {
-            console.log('⚠️ Could not load from server, using local cache');
         }
-    } else {
-        console.log('⚠️ No auth token, waiting for login');
     }
-    
     renderSidebar(); 
     searchRecords(); 
     document.getElementById('searchInput').addEventListener('keyup', searchRecords);
@@ -721,10 +659,7 @@ function updateTopButtons() {
     const isBin = currentTab === 'Bin';
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
     
-    // Hide the 'Add New Record' button if viewing the Bin OR if the user is just Staff
     document.getElementById('addNewBtn').style.display = (isBin || isStaff) ? 'none' : 'inline-block';
-    
-    // Only Supervisors can empty the recycle bin
     document.getElementById('emptyBinBtn').style.display = (isBin && !isStaff) ? 'inline-block' : 'none';
 }
 
@@ -856,7 +791,6 @@ async function submitNewRecord(event) {
                 mockDatabase.push(newRecord); 
                 const saved = await saveRecordToServer(newRecord);
                 if (saved) {
-                    // Refresh from server immediately to ensure new record appears without waiting for socket broadcast
                     const freshRecords = await loadRecordsFromAPI();
                     if (freshRecords) {
                         mockDatabase = freshRecords;
@@ -868,7 +802,6 @@ async function submitNewRecord(event) {
             reader.readAsArrayBuffer(fileInput.files[0]);
             
         } else {
-            // Updated row matching your 20 new columns
             const rowData = [
                 getValue('f_no'), getValue('f_checkDate'), "", getValue('f_officer'), 
                 getValue('f_transType'), getValue('f_soNum'), getValue('f_soDate'), getValue('f_project'), 
@@ -878,7 +811,6 @@ async function submitNewRecord(event) {
 
             const formattedDate = new Date(dynamicDate).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
             
-            // Your exact new 20 headers
             const headers = [
                 "No.", "Check Date", "Check Number", "Accountable Person", "Transaction Type", 
                 "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Location", 
@@ -895,7 +827,6 @@ async function submitNewRecord(event) {
                 rowData
             ];
             
-            // Extends the styling out to 20 columns (A through T)
             newRecord.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
             newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
             const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
@@ -904,7 +835,6 @@ async function submitNewRecord(event) {
             mockDatabase.push(newRecord); 
             const saved = await saveRecordToServer(newRecord);
             if (saved) {
-                // Refresh from server immediately to ensure new record appears without waiting for socket broadcast
                 const freshRecords = await loadRecordsFromAPI();
                 if (freshRecords) {
                     mockDatabase = freshRecords;
@@ -929,7 +859,6 @@ function finishSubmission() {
     searchRecords(); 
 }
 
-// --- APPEND NEW ROW LOGIC ---
 function openAddRowModal() {
     document.getElementById('addRowModal').style.display = 'block';
 }
@@ -944,7 +873,6 @@ function submitNewRow(event) {
     try {
         const getValue = (id) => document.getElementById(id) ? document.getElementById(id).value : "";
         
-        // Match the 20 columns
         const rowData = [
             getValue('r_no'), getValue('r_checkDate'), "", getValue('r_officer'), 
             getValue('r_transType'), getValue('r_soNum'), getValue('r_soDate'), getValue('r_project'), 
@@ -986,7 +914,6 @@ function submitNewRow(event) {
     }
 }
 
-// --- MODAL & SPREADSHEET LOGIC ---
 function openModal(id) {
     const record = mockDatabase.find(item => item.id === id);
     if (!record) return;
@@ -994,15 +921,12 @@ function openModal(id) {
     if (isFullScreen) toggleFullScreen(); 
 
     currentOpenRecordId = id;
-    
-    // Store previous Excel data for change detection
     record.previousExcelData = record.excelData ? JSON.parse(JSON.stringify(record.excelData)) : [];
     
     document.getElementById('fileModal').style.display = 'block';
     document.getElementById('modalTitle').innerText = `[${record.serial}] Audit Worksheet: ${record.name}`;
     document.getElementById('recordStatusDropdown').value = record.status || "Pending";
     
-    // Fetch logs from server if record has api_id
     if (record.api_id) {
         fetchLogsFromServer(id, record.api_id);
     } else {
@@ -1049,18 +973,12 @@ function openModal(id) {
     }
 
     let loadingSpreadsheet = true; 
-    
-    // 1. Determine if the current viewer is a restricted Staff Auditor
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
-    
-    // 2. Generate dynamic column permissions
     const columnConfig = [];
     for (let i = 0; i < 20; i++) {
         columnConfig.push({
             type: 'text',
             width: 140,
-            // Lock columns A through N (0-13) if the user is a Staff Auditor.
-            // Columns O through T (14-19) remain editable for their audit work.
             readOnly: isStaff && i <= 13 
         });
     }
@@ -1068,19 +986,18 @@ function openModal(id) {
     currentSpreadsheet = jspreadsheet(container, {
         data: record.excelData,
         minDimensions: [20, 20], 
-        columns: columnConfig, // Inject the dynamic security permissions
+        columns: columnConfig, 
         tableOverflow: true, 
         tableWidth: "100%", 
         tableHeight: "400px",
-        columnDrag: !isStaff, // Prevent staff from dragging locked columns to unlocked zones
+        columnDrag: !isStaff, 
         rowDrag: !isStaff, 
-        allowInsertRow: !isStaff, // Prevent staff from injecting blank rows
+        allowInsertRow: !isStaff, 
         allowInsertColumn: false,
         style: record.style || {}, 
         mergeCells: record.mergeCells || {}, 
         responsive: true,
         onchange: function(instance, cell, x, y, value) {
-            // Prevent looping when loading or receiving real-time sync from others
             if (loadingSpreadsheet || isReceivingSync) return; 
             if (!record.api_id) return; 
             
@@ -1088,7 +1005,7 @@ function openModal(id) {
             const rowNum = parseInt(y) + 1;
             const cellRef = `${colLetter}${rowNum}`;
             
-            // Instantly beam this cell change using the UNIVERSAL database ID
+            // Instantly beam this cell change to the relay
             if (socketConnected && socket) {
                 socket.emit('cell_edit', {
                     recordApiId: record.api_id, 
@@ -1103,7 +1020,6 @@ function openModal(id) {
                 ? `System: Cleared cell ${cellRef}` 
                 : `System: Updated Excel cell ${cellRef} to "${value}"`;
             
-            // Send lightweight audit log to the backend
             sendCommentToServer(record.api_id, message, (success) => {
                 if (!success) console.error(`Failed to log cell edit: ${cellRef}`);
             });
@@ -1112,12 +1028,10 @@ function openModal(id) {
     loadingSpreadsheet = false;
 }
 
-// Detect changes in Excel data and create audit log entries
 function detectAndLogChanges(record, newData) {
     const oldData = record.previousExcelData || record.excelData || [];
     const changes = [];
     
-    // Compare cell values between old and new data
     for (let row = 0; row < Math.max(oldData.length, newData.length); row++) {
         const oldRow = oldData[row] || [];
         const newRow = newData[row] || [];
@@ -1127,23 +1041,20 @@ function detectAndLogChanges(record, newData) {
             const newVal = newRow[col] || '';
             
             if (String(oldVal).trim() !== String(newVal).trim()) {
-                // Convert column index to letter (0=A, 1=B, etc)
                 const colLetter = String.fromCharCode(65 + col);
                 const cellRef = `${colLetter}${row + 1}`;
                 changes.push({
                     cell: cellRef,
-                    oldVal: String(oldVal).substring(0, 50), // Truncate for readability
+                    oldVal: String(oldVal).substring(0, 50), 
                     newVal: String(newVal).substring(0, 50)
                 });
             }
         }
     }
     
-    // Create audit log entries for changes
     if (changes.length > 0 && currentUser) {
         if (!record.logs) record.logs = [];
         
-        // Group changes summary
         const summary = changes.length <= 5 
             ? changes.map(c => `${c.cell}: "${c.oldVal}" → "${c.newVal}"`).join('; ')
             : `${changes.length} cells modified`;
@@ -1155,7 +1066,6 @@ function detectAndLogChanges(record, newData) {
             username: currentUser.username
         });
         
-        // Send to server as a system comment
         if (record.api_id && currentToken) {
             fetch(`${API_BASE_URL}/audit/${record.api_id}/logs`, {
                 method: 'POST',
@@ -1187,7 +1097,6 @@ function closeModal() {
         if (record) {
             const newExcelData = currentSpreadsheet.getData();
             
-            // Detect and log changes before updating
             detectAndLogChanges(record, newExcelData);
             
             record.excelData = newExcelData;
@@ -1195,7 +1104,6 @@ function closeModal() {
             record.style = currentSpreadsheet.getStyle();
             record.mergeCells = currentSpreadsheet.getConfig().mergeCells || {};
             
-            // Sync Excel data changes to server for real-time broadcast
             updateRecordOnServer(record, 'Excel data updated');
         }
     }
@@ -1211,7 +1119,6 @@ function changeRecordStatus(newStatus) {
         if (!record.logs) record.logs = [];
         record.logs.push({ date: new Date().toLocaleString(), message: `System: Status changed to ${newStatus}` });
         saveToMemory();
-        // Sync status change to server for real-time broadcast
         updateRecordOnServer(record, `Status changed to ${newStatus}`);
         searchRecords(); 
         renderLogs(record.logs); 
@@ -1272,18 +1179,14 @@ function addAuditLog() {
         if (!record.logs) record.logs = [];
         const comment = input.value.trim();
         
-        // Clear input immediately for better UX
         input.value = "";
         input.disabled = true;
         
-        // Send comment to server
         sendCommentToServer(record.api_id, comment, (success) => {
             input.disabled = false;
             if (success) {
-                // Comment was sent and will be broadcast by socket.io
                 console.log('✓ Comment sent to server');
             } else {
-                // If server fails, add locally but mark as pending
                 record.logs.push({ 
                     date: new Date().toLocaleString(), 
                     message: `[PENDING] ${comment}`,
@@ -1475,15 +1378,8 @@ function restoreModal() {
 
 // ============ USER SETTINGS & PASSWORD ============
 
-function openPasswordModal() {
-    // Password management moved to User Settings modal
-    openSettingsModal();
-}
-
-function closePasswordModal() {
-    // Deprecated: Password modal removed - now part of User Settings
-    // This function kept for backwards compatibility
-}
+function openPasswordModal() { openSettingsModal(); }
+function closePasswordModal() {}
 
 function openSettingsModal() {
     document.getElementById('settingsModal').style.display = 'block';
@@ -1532,7 +1428,6 @@ async function handlePasswordChange(event) {
             errorEl.textContent = data.error || 'Failed to update password.';
         }
     } catch (error) {
-        console.error('Password change error:', error);
         errorEl.style.color = '#dc2626'; 
         errorEl.textContent = 'Connection error. Please try again.';
     }
@@ -1683,14 +1578,11 @@ async function loadRecordsFromAPI() {
         const records = await response.json();
         
         return records.map(record => {
-            // Safely open the "data" package the database sent us
             let parsedData = {};
             if (record.data) {
-                // If it accidentally got double-stringified, this fixes it
                 parsedData = typeof record.data === 'string' ? JSON.parse(record.data) : record.data;
             }
 
-            // Map the database columns to exactly what your frontend expects
             return {
                 id: record.id || Date.now(),
                 serial: record.serial_number || "Unknown Serial",
@@ -1700,7 +1592,7 @@ async function loadRecordsFromAPI() {
                 summary: parsedData.summary || `Audit record generated for ${record.record_name}`,
                 status: parsedData.status || record.status || "Pending",
                 logs: [], 
-                excelData: parsedData.excelData || null, // Pulls from inside the data package!
+                excelData: parsedData.excelData || null,
                 style: parsedData.style || {},
                 mergeCells: parsedData.mergeCells || null,
                 deleted: record.is_deleted || false,
@@ -1725,8 +1617,6 @@ async function saveRecordToServer(record) {
             body: JSON.stringify({
                 record_name: record.name,
                 record_type: record.type,
-                // NOTE: serial_number is now generated on the SERVER for uniqueness!
-                // serial_number: record.serial,  <- REMOVED
                 data: {
                     excelData: record.excelData,
                     style: record.style,
@@ -1740,56 +1630,35 @@ async function saveRecordToServer(record) {
 
         if (response.ok) {
             const savedRecord = await response.json();
-            // Server returns the record WITH the generated serial_number
             record.api_id = savedRecord.id;
-            record.serial = savedRecord.serial_number; // Get serial from server
+            record.serial = savedRecord.serial_number;
             
-            // Update in mockDatabase to ensure the api_id and serial are persisted
             const recordIndex = mockDatabase.findIndex(r => r.id === record.id);
             if (recordIndex !== -1) {
                 mockDatabase[recordIndex].api_id = savedRecord.id;
                 mockDatabase[recordIndex].serial = savedRecord.serial_number;
                 saveToMemory();
             }
-            console.log('✅ Record successfully saved to server with ID:', savedRecord.id);
-            console.log('   Server-generated serial:', savedRecord.serial_number);
-            console.log('⏳ Waiting for real-time sync broadcast from server...');
             return true;
         } else {
-            try {
-                const errorData = await response.json();
-                console.error('❌ Server error (HTTP ' + response.status + '):', errorData.error || errorData);
-                showNotification('❌ Error saving record: ' + (errorData.error || 'Unknown error'));
-            } catch (e) {
-                console.error('❌ Server error (HTTP ' + response.status + ') - Could not parse error response');
-                showNotification('❌ Server error: HTTP ' + response.status);
-            }
             return false;
         }
     } catch (err) {
-        console.error('❌ Network error connecting to backend:', err.message);
-        showNotification('❌ Connection error: ' + err.message);
         return false;
     }
 }
 
-// ============ UPDATE RECORD ON SERVER (For Real-Time Sync) ============
 async function updateRecordOnServer(record, comment = '') {
     if (!record) return false;
     
-    // If record doesn't have api_id yet, try to create it first
     if (!record.api_id) {
         if (!currentToken) {
-            console.log('Not logged in, storing changes locally...');
             saveToMemory();
             return false;
         }
         
-        // Try to save the record to server first
-        console.log('Record not yet synced, creating on server first...');
         const created = await saveRecordToServer(record);
         if (!created) {
-            console.log('Failed to create record on server, saving locally...');
             saveToMemory();
             return false;
         }
@@ -1816,16 +1685,13 @@ async function updateRecordOnServer(record, comment = '') {
         });
 
         if (response.ok) {
-            console.log('✓ Record updated on server:', record.api_id);
             saveToMemory();
             return true;
         } else {
-            console.error('Failed to update record on server:', response.status);
             saveToMemory();
             return false;
         }
     } catch (err) {
-        console.error('Error updating record on server:', err);
         saveToMemory();
         return false;
     }
