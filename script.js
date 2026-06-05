@@ -786,15 +786,15 @@ async function submitNewRecord(event) {
             ];
             
             newRecord.excelData = [
-                [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S\nFor the Fiscal Year ${yearStr}\nAs of ${formattedDate}`],
-                [],
-                [],
+                [`SUMMARY OF AUDIT REPORT - ${currentTab.toUpperCase()}S`, ...Array(19).fill("")],
+                [`For the Fiscal Year ${yearStr}`, ...Array(19).fill("")],
+                [`As of ${formattedDate}`, ...Array(19).fill("")],
                 headers, 
                 rowData
             ];
             
-            newRecord.mergeCells = {};
-            newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 14px; color: black; vertical-align: middle;' };
+            newRecord.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
+            newRecord.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 16px;', 'A2': 'text-align: center; font-weight: bold;', 'A3': 'text-align: center; font-weight: bold;' };
             const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
             columns.forEach(col => newRecord.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
             
@@ -946,15 +946,27 @@ function openModal(id) {
         const formattedDate = record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }) : new Date().toLocaleDateString();
         
         record.excelData = [
-            [`${title}\nFor the Fiscal Year ${new Date().getFullYear()}\nAs of ${formattedDate}`],
-            [],
-            [],
+            [title, ...Array(19).fill("")], 
+            [`For the Fiscal Year ${new Date().getFullYear()}`, ...Array(19).fill("")], 
+            [`As of ${formattedDate}`, ...Array(19).fill("")], 
             headers, 
             Array(20).fill("")
         ];
         
-        record.mergeCells = {};
-        record.style = { 'A1': 'text-align: center; font-weight: bold; font-size: 14px; color: black; vertical-align: middle;' };
+        record.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
+        record.style = {};
+        
+        // Apply center alignment and bold to rows 1-3 across ALL columns
+        const headerRows = ['1', '2', '3'];
+        headerRows.forEach(row => {
+            columns.forEach(col => {
+                if (row === '1') {
+                    record.style[`${col}${row}`] = 'text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;';
+                } else {
+                    record.style[`${col}${row}`] = 'text-align: center; font-weight: bold; vertical-align: middle;';
+                }
+            });
+        });
     } else {
         // For existing records, always ensure row 4 has complete headers
         if (!record.excelData[3]) {
