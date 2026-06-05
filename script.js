@@ -926,15 +926,6 @@ function openModal(id) {
         }
     }
     
-    const addRowBtn = document.querySelector('.add-row-btn');
-    if (addRowBtn) {
-        if (canDeleteRecords()) {
-            addRowBtn.style.display = 'inline-block';
-        } else {
-            addRowBtn.style.display = 'none';
-        }
-    }
-    
     const container = document.getElementById('excelViewer');
     container.innerHTML = "";
     if (currentSpreadsheet) currentSpreadsheet.destroy();
