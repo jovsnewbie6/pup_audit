@@ -625,6 +625,7 @@ function updateTopButtons() {
     const isBin = currentTab === 'Bin';
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
     
+    // Hides "Add New Record" for Staff
     document.getElementById('addNewBtn').style.display = (isBin || isStaff) ? 'none' : 'inline-block';
     document.getElementById('emptyBinBtn').style.display = (isBin && !isStaff) ? 'inline-block' : 'none';
 }
@@ -911,19 +912,24 @@ function openModal(id) {
     document.getElementById('modalTitle').innerText = `[${record.serial}] Audit Worksheet: ${record.name}`;
     document.getElementById('recordStatusDropdown').value = record.status || "Pending";
     
+    const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
+
+    // ---- HIDE BUTTONS FOR STAFF AUDITORS IN MODAL ----
+    const deleteBtn = document.querySelector('.delete-btn');
+    if (deleteBtn) {
+        deleteBtn.style.display = canDeleteRecords() ? 'inline-block' : 'none';
+    }
+    
+    const addRowBtn = document.querySelector('.add-row-btn');
+    if (addRowBtn) {
+        addRowBtn.style.display = isStaff ? 'none' : 'inline-block';
+    }
+    // --------------------------------------------------
+
     if (record.api_id) {
         fetchLogsFromServer(id, record.api_id);
     } else {
         renderLogs(record.logs);
-    }
-    
-    const deleteBtn = document.querySelector('.delete-btn');
-    if (deleteBtn) {
-        if (canDeleteRecords()) {
-            deleteBtn.style.display = 'inline-block';
-        } else {
-            deleteBtn.style.display = 'none';
-        }
     }
     
     const container = document.getElementById('excelViewer');
@@ -982,21 +988,20 @@ function openModal(id) {
     if (!record.style) record.style = {};
     columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
 
-    const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
     const columnConfig = [];
-for (let i = 0; i < 20; i++) {
-    // Column 12 (M) is Auditor - keep as text/dropdown for rows 5+
-    if (i === 12) { 
-        columnConfig.push({
-            type: 'text',
-            title: 'Auditor',
-            width: 150,
-            readOnly: false
-        });
-    } else {
-        columnConfig.push({ type: 'text', width: 140, readOnly: isStaff && i <= 13 });
+    for (let i = 0; i < 20; i++) {
+        // Column 12 (M) is Auditor - removed the custom title
+        if (i === 12) { 
+            columnConfig.push({
+                type: 'text',
+                width: 150,
+                readOnly: false
+            });
+        } else {
+            columnConfig.push({ type: 'text', width: 140, readOnly: isStaff && i <= 13 });
+        }
     }
-}
+    
     currentSpreadsheet = jspreadsheet(container, {
         data: record.excelData,
         minDimensions: [20, 20], 
@@ -1012,30 +1017,30 @@ for (let i = 0; i < 20; i++) {
         mergeCells: record.mergeCells || {}, 
         responsive: true,
         onchange: function(instance, cell, x, y, value) {
-    if (isReceivingSync) return; 
-    hasUnsavedLocalChanges = true;
+            if (isReceivingSync) return; 
+            hasUnsavedLocalChanges = true;
 
-    const colLetter = String.fromCharCode(65 + parseInt(x));
-    const cellRef = `${colLetter}${parseInt(y) + 1}`;
-    
-    // Reapply row 4 yellow styling to prevent it from disappearing
-    if (y !== 3) {
-        columns.forEach((col) => {
-            currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
-        });
-    }
-    
-    // BROADCAST ONLY. No logging/comments here.
-    if (socketConnected && socket) {
-        socket.emit('cell_edit', {
-            recordApiId: record.api_id,
-            cellRef: cellRef,
-            x: parseInt(x),
-            y: parseInt(y),
-            value: value
-        });
-    }
-    // Logging only happens once in closeModal via detectAndLogChanges - NOT here to prevent spam
+            const colLetter = String.fromCharCode(65 + parseInt(x));
+            const cellRef = `${colLetter}${parseInt(y) + 1}`;
+            
+            // Reapply row 4 yellow styling to prevent it from disappearing
+            if (y !== 3) {
+                columns.forEach((col) => {
+                    currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
+                });
+            }
+            
+            // BROADCAST ONLY. No logging/comments here.
+            if (socketConnected && socket) {
+                socket.emit('cell_edit', {
+                    recordApiId: record.api_id,
+                    cellRef: cellRef,
+                    x: parseInt(x),
+                    y: parseInt(y),
+                    value: value
+                });
+            }
+            // Logging only happens once in closeModal via detectAndLogChanges - NOT here to prevent spam
         }
     });
     
@@ -1145,6 +1150,7 @@ async function closeModal() {
     currentOpenRecordId = null;
     hasUnsavedLocalChanges = false;
 }
+
 function changeRecordStatus(newStatus) {
     const record = mockDatabase.find(item => item.id === currentOpenRecordId);
     if (record && record.status !== newStatus) {
@@ -1728,4 +1734,4 @@ async function updateRecordOnServer(record, comment = '') {
         saveToMemory();
         return false;
     }
-}  
+}
