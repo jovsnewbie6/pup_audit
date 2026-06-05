@@ -139,33 +139,43 @@ function initializeWebSocket() {
         }
     });
 
-    // ---> THE ULTIMATE VISUAL OVERRIDE <---
     socket.on('cell_updated', (data) => {
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // 1. Update background data
+            // Invisible background update
             if (!targetRecord.excelData) targetRecord.excelData = [];
-            while (targetRecord.excelData.length <= data.y) targetRecord.excelData.push(Array(20).fill(""));
+            while (targetRecord.excelData.length <= data.y) {
+                targetRecord.excelData.push(Array(20).fill(""));
+            }
             targetRecord.excelData[data.y][data.x] = data.value;
+
+            if (targetRecord.previousExcelData) {
+                while (targetRecord.previousExcelData.length <= data.y) targetRecord.previousExcelData.push(Array(20).fill(""));
+                targetRecord.previousExcelData[data.y][data.x] = data.value;
+            }
             saveToMemory();
 
-            // 2. LIVE UI INJECTION
+            // Visual rendering LIVE
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
                 isReceivingSync = true;
                 
-                // FORCE THE UPDATE: This tells the library to physically re-draw the cell
-                // Using .updateSelection() or .setValue() with the force parameter
-                currentSpreadsheet.setValue(data.cellRef, data.value, true);
+                const colIndex = parseInt(data.x);
+                let wasReadOnly = false;
                 
-                // Manually trigger the redraw for this specific cell
-                const cellElement = currentSpreadsheet.getCell(data.cellRef);
-                if (cellElement) {
-                    cellElement.innerText = data.value;
+                if (currentSpreadsheet.options.columns && currentSpreadsheet.options.columns[colIndex] && currentSpreadsheet.options.columns[colIndex].readOnly) {
+                    wasReadOnly = true;
+                    currentSpreadsheet.options.columns[colIndex].readOnly = false;
                 }
                 
+                currentSpreadsheet.setValue(data.cellRef, data.value, true);
+                
+                if (wasReadOnly) {
+                    currentSpreadsheet.options.columns[colIndex].readOnly = true;
+                }
+                
+                currentSpreadsheet.refresh(); // Forces the redraw visually
                 isReceivingSync = false;
-                console.log("Successfully injected live change to UI:", data.cellRef);
             }
         }
     });
@@ -762,7 +772,7 @@ async function submitNewRecord(event) {
             
         } else {
             const rowData = [
-                getValue('f_no'), getValue('f_checkDate'), "", getValue('f_officer'), 
+                getValue('f_no'), getValue('f_checkDate'), getValue('f_checkNum'), getValue('f_officer'), 
                 getValue('f_transType'), getValue('f_soNum'), getValue('f_soDate'), getValue('f_project'), 
                 getValue('f_incDates'), "", getValue('f_amtGranted'), getValue('f_amtLiq'), 
                 getValue('f_auditor'), getValue('f_dateAssign'), "", "", "", "", "", ""
@@ -833,7 +843,7 @@ function submitNewRow(event) {
         const getValue = (id) => document.getElementById(id) ? document.getElementById(id).value : "";
         
         const rowData = [
-            getValue('r_no'), getValue('r_checkDate'), "", getValue('r_officer'), 
+            getValue('r_no'), getValue('r_checkDate'), getValue('r_checkNum'), getValue('r_officer'), 
             getValue('r_transType'), getValue('r_soNum'), getValue('r_soDate'), getValue('r_project'), 
             getValue('r_incDates'), "", getValue('r_amtGranted'), getValue('r_amtLiq'), 
             getValue('r_auditor'), getValue('r_dateAssign'), "", "", "", "", "", ""
@@ -865,6 +875,23 @@ function submitNewRow(event) {
             record.logs.push({ date: new Date().toLocaleString(), message: `System: Inserted new data row via form.` });
             
             saveToMemory();
+
+            // EMIT THE NEW ROW TO WEBSOCKET
+            if (socketConnected && socket && record.api_id) {
+                rowData.forEach((val, colIndex) => {
+                    if (val !== "") {
+                        const colLetter = String.fromCharCode(65 + colIndex);
+                        socket.emit('cell_edit', {
+                            recordApiId: record.api_id,
+                            cellRef: `${colLetter}${insertIndex + 1}`,
+                            x: colIndex,
+                            y: insertIndex,
+                            value: val
+                        });
+                    }
+                });
+            }
+
             closeAddRowModal();
             openModal(currentOpenRecordId); 
         }
@@ -932,15 +959,21 @@ function openModal(id) {
         columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center;');
     }
 
-    let loadingSpreadsheet = true; 
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
     const columnConfig = [];
+    
+    // NEW DROPDOWN LOGIC
     for (let i = 0; i < 20; i++) {
-        columnConfig.push({
-            type: 'text',
-            width: 140,
-            readOnly: isStaff && i <= 13 
-        });
+        if (i === 12) { // 13th Column is Auditor
+            columnConfig.push({
+                type: 'dropdown',
+                source: ['Anjo Almoroto', 'Edilmira Maya', 'Melissa Campanero', 'Milagros Santos', 'Sarah Jane Guevarra', 'Jake Binuya'],
+                width: 150,
+                readOnly: isStaff && i <= 13 
+            });
+        } else {
+            columnConfig.push({ type: 'text', width: 140, readOnly: isStaff && i <= 13 });
+        }
     }
 
     currentSpreadsheet = jspreadsheet(container, {
@@ -958,7 +991,7 @@ function openModal(id) {
         mergeCells: record.mergeCells || {}, 
         responsive: true,
         onchange: function(instance, cell, x, y, value) {
-            if (loadingSpreadsheet || isReceivingSync) return; 
+            if (isReceivingSync) return; 
             if (!record.api_id) return; 
             
             hasUnsavedLocalChanges = true; 
@@ -987,7 +1020,6 @@ function openModal(id) {
             });
         }
     });
-    loadingSpreadsheet = false;
 }
 
 function detectAndLogChanges(record, newData) {
@@ -1662,5 +1694,3 @@ async function updateRecordOnServer(record, comment = '') {
         return false;
     }
 }
-//Force trigger for Update
-
