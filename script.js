@@ -6,7 +6,8 @@ var API_BASE_URL = window.location.origin + '/api';
 
 // Tracker for Echo Loop Prevention & Overwrite Protection
 window.pendingRemoteUpdates = {}; 
-let hasUnsavedLocalChanges = false; // <--- NEW: The "Dirty Flag" to prevent ghost saves
+let hasUnsavedLocalChanges = false; 
+let isReceivingSync = false; // <--- The crucial flag to allow visual updates!
 
 // ============ WEBSOCKET/SOCKET.IO CONNECTION ============
 let socket = null;
@@ -138,41 +139,50 @@ function initializeWebSocket() {
         }
     });
 
+    // ---> THE ULTIMATE VISUAL SYNC RECEIVER <---
     socket.on('cell_updated', (data) => {
+        console.log("📥 Live sync received for cell:", data.cellRef, "Value:", data.value);
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // 1. Invisible background update
+            // 1. Invisible background update to keep local memory safe
             if (!targetRecord.excelData) targetRecord.excelData = [];
             while (targetRecord.excelData.length <= data.y) {
                 targetRecord.excelData.push(Array(20).fill(""));
             }
             targetRecord.excelData[data.y][data.x] = data.value;
 
-            // ---> NEW: Also update the 'previous' state so the local machine doesn't falsely take credit for this edit in the Audit Log
+            // Also update the 'previous' state so the local machine doesn't falsely take credit for this edit
             if (targetRecord.previousExcelData) {
                 while (targetRecord.previousExcelData.length <= data.y) targetRecord.previousExcelData.push(Array(20).fill(""));
                 targetRecord.previousExcelData[data.y][data.x] = data.value;
             }
-
             saveToMemory();
 
-            // 2. Visual rendering
+            // 2. Visually draw it on the screen IMMEDIATELY if they have it open
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
-                window.pendingRemoteUpdates[data.cellRef] = String(data.value);
+                // LOCK THE SYSTEM SO IT DOESN'T RE-BROADCAST AND ECHO
+                isReceivingSync = true;
+                
                 const colIndex = parseInt(data.x);
                 let wasReadOnly = false;
                 
+                // Drop the security readOnly lock for a millisecond to allow text to render
                 if (currentSpreadsheet.options.columns && currentSpreadsheet.options.columns[colIndex] && currentSpreadsheet.options.columns[colIndex].readOnly) {
                     wasReadOnly = true;
                     currentSpreadsheet.options.columns[colIndex].readOnly = false;
                 }
                 
-                currentSpreadsheet.setValue(data.cellRef, data.value);
+                // Physically draw the text into the spreadsheet UI right in front of their eyes
+                currentSpreadsheet.setValue(data.cellRef, data.value, true);
                 
+                // Instantly reactivate the security lock
                 if (wasReadOnly) {
                     currentSpreadsheet.options.columns[colIndex].readOnly = true;
                 }
+                
+                // UNLOCK THE SYSTEM
+                isReceivingSync = false;
             }
         }
     });
@@ -214,9 +224,7 @@ function startFallbackPolling() {
                     }
                 }
             }
-        } catch (error) {
-            console.error('Poll error:', error);
-        }
+        } catch (error) {}
     }, 10000); 
 }
 
@@ -271,9 +279,7 @@ async function populateLoginDropdown() {
                 dropdown.appendChild(option);
             });
         }
-    } catch (error) {
-        console.error('Failed to fetch users for dropdown:', error);
-    }
+    } catch (error) {}
 }
 
 function showAuthInterface() {
@@ -468,7 +474,7 @@ async function loadRecordsFromAPI() {
                     excelData: parsedData.excelData || record.excel_data || null,
                     style: record.style || {},
                     mergeCells: parsedData.mergeCells || record.merge_cells || null,
-                    deleted: record.deleted || record.is_deleted || false,
+                    deleted: record.is_deleted || false,
                     deletedAt: record.deletedAt || record.deleted_at || null,
                     api_id: record.id
                 };
@@ -891,7 +897,7 @@ function openModal(id) {
     if (isFullScreen) toggleFullScreen(); 
 
     currentOpenRecordId = id;
-    hasUnsavedLocalChanges = false; // ---> NEW: Reset dirty flag
+    hasUnsavedLocalChanges = false; 
     record.previousExcelData = record.excelData ? JSON.parse(JSON.stringify(record.excelData)) : [];
     
     document.getElementById('fileModal').style.display = 'block';
@@ -954,8 +960,6 @@ function openModal(id) {
         });
     }
 
-    let isReceivingSync = false; 
-
     currentSpreadsheet = jspreadsheet(container, {
         data: record.excelData,
         minDimensions: [20, 20], 
@@ -971,22 +975,18 @@ function openModal(id) {
         mergeCells: record.mergeCells || {}, 
         responsive: true,
         onchange: function(instance, cell, x, y, value) {
+            // THE FIX: We must abort if we are just visually drawing what the server sent us
             if (loadingSpreadsheet || isReceivingSync) return; 
             if (!record.api_id) return; 
             
-            // ---> NEW: Set the Dirty Flag! <---
-            hasUnsavedLocalChanges = true;
+            hasUnsavedLocalChanges = true; 
 
             const colLetter = String.fromCharCode(65 + parseInt(x));
             const rowNum = parseInt(y) + 1;
             const cellRef = `${colLetter}${rowNum}`;
             
-            if (window.pendingRemoteUpdates && window.pendingRemoteUpdates[cellRef] === String(value)) {
-                delete window.pendingRemoteUpdates[cellRef]; 
-                return; 
-            }
-
             if (socketConnected && socket) {
+                console.log("🚀 Emitting live cell edit to server:", cellRef, value);
                 socket.emit('cell_edit', {
                     recordApiId: record.api_id, 
                     cellRef: cellRef,
@@ -1072,8 +1072,6 @@ function toggleAuditLog() {
 }
 
 function closeModal() {
-    // ---> NEW: Ghost Overwrite Protection <---
-    // Only fire the save sequence if the user physically typed keys inside the modal!
     if (currentSpreadsheet && currentOpenRecordId && hasUnsavedLocalChanges) {
         const record = mockDatabase.find(item => item.id === currentOpenRecordId);
         if (record) {
@@ -1095,7 +1093,7 @@ function closeModal() {
     saveToMemory();
     document.getElementById('fileModal').style.display = 'none';
     currentOpenRecordId = null;
-    hasUnsavedLocalChanges = false; // Reset the dirty flag
+    hasUnsavedLocalChanges = false; 
 }
 
 function changeRecordStatus(newStatus) {
