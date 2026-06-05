@@ -239,7 +239,7 @@ header { display: flex; justify-content: space-between; align-items: flex-start;
 .user-info { display: flex; align-items: center; gap: 10px; background: white; padding: 10px 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 .role-badge { background: #800000; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; font-weight: bold; }
 .role-badge.role-supervisor { background: #059669; color: white; }
-.role-badge.role-auditor { background: #0369a1; color: white; }
+.role-badge.role-auditor { background: #FFD700; color: #800000; font-weight: bold; }
 
 /* ============ MOBILE RESPONSIVE ============ */
 

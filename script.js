@@ -180,11 +180,8 @@ function initializeWebSocket() {
         }
     });
 
-    setInterval(() => {
-        if (currentTab && document.getElementById('resultsContainer')) {
-            searchRecords();
-        }
-    }, 5000);
+    // Real-time sync is now handled by socket.io events above
+    // Removed aggressive polling to prevent log spam
 }
 
 function startFallbackPolling() {
@@ -961,24 +958,18 @@ function openModal(id) {
 
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
     const columnConfig = [];
-
-// We define 20 columns explicitly to match your template
 for (let i = 0; i < 20; i++) {
-    // Column 12 is the 13th column (Auditor)
+    // If column index is 12 (the 13th column), make it the dropdown
     if (i === 12) { 
         columnConfig.push({
             type: 'dropdown',
-            title: 'Auditor', // Explicitly setting the title
+            title: 'Auditor',
             source: ['Anjo Almoroto', 'Edilmira Maya', 'Melissa Campanero', 'Milagros Santos', 'Sarah Jane Guevarra', 'Jake Binuya'],
             width: 150,
-            readOnly: isStaff
+            readOnly: isStaff // Lock it for staff if needed
         });
     } else {
-        columnConfig.push({ 
-            type: 'text', 
-            width: 140, 
-            readOnly: isStaff && i <= 13 // Locks everything up to column 14 for staff
-        });
+        columnConfig.push({ type: 'text', width: 140, readOnly: isStaff && i <= 13 });
     }
 }
     currentSpreadsheet = jspreadsheet(container, {
@@ -1002,7 +993,7 @@ for (let i = 0; i < 20; i++) {
     const colLetter = String.fromCharCode(65 + parseInt(x));
     const cellRef = `${colLetter}${parseInt(y) + 1}`;
     
-    // This handles real-time sync ONLY (No spammy logging here!)
+    // BROADCAST ONLY. No logging/comments here.
     if (socketConnected && socket) {
         socket.emit('cell_edit', {
             recordApiId: record.api_id,
@@ -1012,6 +1003,7 @@ for (let i = 0; i < 20; i++) {
             value: value
         });
     }
+    // STOP! If you see 'sendCommentToServer' or 'detectAndLogChanges' here, DELETE IT.
 
             const message = value === "" 
                 ? `System: Cleared cell ${cellRef}` 
@@ -1089,20 +1081,24 @@ function toggleAuditLog() {
 
 async function closeModal() {
     if (currentSpreadsheet && currentOpenRecordId) {
-        // Force grid to accept changes
-        currentSpreadsheet.refresh(); 
+        // 1. Force the grid to finalize
+        currentSpreadsheet.refresh();
 
+        // 2. Only save if something changed
         if (hasUnsavedLocalChanges) {
             const record = mockDatabase.find(item => item.id === currentOpenRecordId);
             if (record) {
                 record.excelData = currentSpreadsheet.getData();
                 record.style = currentSpreadsheet.getStyle();
                 
-                // await ensures this finishes before the window closes
+                // This is the ONLY place logging should happen
+                detectAndLogChanges(record, record.excelData); 
+                
                 await updateRecordOnServer(record, 'Excel data updated');
             }
         }
     }
+    
     document.getElementById('fileModal').style.display = 'none';
     currentOpenRecordId = null;
     hasUnsavedLocalChanges = false;
