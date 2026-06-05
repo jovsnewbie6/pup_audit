@@ -159,10 +159,12 @@ function initializeWebSocket() {
         }
     });
 
+    // ---> THE ULTIMATE FIX: BYPASS READONLY SHIELD FOR SOCKET DATA <---
     socket.on('cell_updated', (data) => {
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
+            // 1. Invisible background update so memory always perfectly matches
             if (!targetRecord.excelData) targetRecord.excelData = [];
             while (targetRecord.excelData.length <= data.y) {
                 targetRecord.excelData.push(Array(20).fill(""));
@@ -170,19 +172,27 @@ function initializeWebSocket() {
             targetRecord.excelData[data.y][data.x] = data.value;
             saveToMemory();
 
+            // 2. Visual rendering fix
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
-                try {
-                    isReceivingSync = true;
-                    if (typeof currentSpreadsheet.setValueFromCoords === 'function') {
-                        currentSpreadsheet.setValueFromCoords(data.x, data.y, data.value, true);
-                    } else {
-                        currentSpreadsheet.setValue(data.cellRef, data.value, true);
-                    }
-                } catch (e) {
-                    console.error('Cell sync render error:', e);
-                } finally {
-                    isReceivingSync = false;
+                isReceivingSync = true;
+                const colIndex = parseInt(data.x);
+                let wasReadOnly = false;
+                
+                // Drop the security lock for a millisecond to allow text to render
+                if (currentSpreadsheet.options.columns && currentSpreadsheet.options.columns[colIndex] && currentSpreadsheet.options.columns[colIndex].readOnly) {
+                    wasReadOnly = true;
+                    currentSpreadsheet.options.columns[colIndex].readOnly = false;
                 }
+                
+                // Physically draw the text into the spreadsheet UI
+                currentSpreadsheet.setValue(data.cellRef, data.value);
+                
+                // Instantly reactivate the security lock
+                if (wasReadOnly) {
+                    currentSpreadsheet.options.columns[colIndex].readOnly = true;
+                }
+                
+                isReceivingSync = false;
             }
         }
     });
@@ -477,8 +487,8 @@ async function loadRecordsFromAPI() {
                     logs: record.logs || [],
                     excelData: parsedData.excelData || record.excel_data || null,
                     style: record.style || {},
-                    mergeCells: record.mergeCells || record.merge_cells || null,
-                    deleted: record.deleted || record.is_deleted || false,
+                    mergeCells: parsedData.mergeCells || record.merge_cells || null,
+                    deleted: record.is_deleted || false,
                     deletedAt: record.deletedAt || record.deleted_at || null,
                     api_id: record.id
                 };
