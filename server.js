@@ -4,6 +4,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const { initializeDatabaseOnStartup } = require('./init-on-startup');
 
 const app = express();
 const server = http.createServer(app);
@@ -54,7 +55,18 @@ module.exports = { app, io, server };
 
 // ============ START SERVER ============
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📡 WebSocket server initialized on port ${PORT}`);
+
+// Initialize database on startup
+initializeDatabaseOnStartup().then(() => {
+    server.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`📡 WebSocket server initialized on port ${PORT}`);
+    });
+}).catch(error => {
+    console.error('Failed to initialize database:', error.message);
+    // Still start server even if init fails
+    server.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`📡 WebSocket server initialized on port ${PORT}`);
+    });
 });
