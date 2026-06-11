@@ -1037,9 +1037,7 @@ function openModal(id) {
     
     setTimeout(() => {
         if (currentSpreadsheet) {
-            currentSpreadsheet.setMerge('A1', 20, 1);
-            currentSpreadsheet.setMerge('A2', 20, 1);
-            currentSpreadsheet.setMerge('A3', 20, 1);
+        
             
             ['1', '2', '3'].forEach(row => {
                 columns.forEach(col => {
