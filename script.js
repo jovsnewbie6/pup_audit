@@ -179,9 +179,6 @@ function initializeWebSocket() {
             }
         }
     });
-
-    // Real-time sync is now handled by socket.io events above
-    // Removed aggressive polling to prevent log spam
 }
 
 function startFallbackPolling() {
@@ -874,7 +871,6 @@ function submitNewRow(event) {
             
             saveToMemory();
 
-            // EMIT THE NEW ROW TO WEBSOCKET
             if (socketConnected && socket && record.api_id) {
                 rowData.forEach((val, colIndex) => {
                     if (val !== "") {
@@ -961,10 +957,11 @@ function openModal(id) {
         } else {
             record.excelData[3] = headers.map((h, i) => h || record.excelData[3][i] || "");
         }
+        // Make SURE the word Auditor is forced into the data array so it isn't blank
+        record.excelData[3][12] = "Auditor";
     }
     
     if (!record.style) record.style = {};
-    columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
 
     const columnConfig = [];
     for (let i = 0; i < 20; i++) {
@@ -991,21 +988,36 @@ function openModal(id) {
         rowDrag: !isStaff, 
         allowInsertRow: !isStaff, 
         allowInsertColumn: false,
-        style: record.style || {}, 
-        mergeCells: record.mergeCells || {}, 
+        mergeCells: { A1: [20, 1], A2: [20, 1], A3: [20, 1] }, 
         responsive: true,
+        updateTable: function(instance, cell, col, row, val, label, cellName) {
+            // Apply Top Title Row Styling
+            if (row === 0 || row === 1 || row === 2) {
+                cell.style.textAlign = 'center';
+                cell.style.fontWeight = 'bold';
+                cell.style.verticalAlign = 'middle';
+                if (row === 0) cell.style.fontSize = '16px';
+            } 
+            // Apply Yellow Header Row Styling
+            else if (row === 3) {
+                cell.style.backgroundColor = '#ffff00';
+                cell.style.fontWeight = 'bold';
+                cell.style.textAlign = 'center';
+                cell.style.color = '#000';
+                
+                // Remove the dropdown UI from row 4, column M
+                if (col === 12) {
+                    cell.innerHTML = "Auditor"; 
+                    cell.classList.add('readonly'); 
+                }
+            }
+        },
         onchange: function(instance, cell, x, y, value) {
             if (isReceivingSync) return; 
             hasUnsavedLocalChanges = true;
 
             const colLetter = String.fromCharCode(65 + parseInt(x));
             const cellRef = `${colLetter}${parseInt(y) + 1}`;
-            
-            if (y !== 3) {
-                columns.forEach((col) => {
-                    currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
-                });
-            }
             
             if (socketConnected && socket) {
                 socket.emit('cell_edit', {
@@ -1032,10 +1044,12 @@ function openModal(id) {
                     } else {
                         currentSpreadsheet.setStyle(`${col}${row}`, 'text-align: center; font-weight: bold; vertical-align: middle;');
                     }
+                    currentSpreadsheet.setReadOnly(`${col}${row}`, true);
                 });
             });
             columns.forEach(col => {
                 currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
+                currentSpreadsheet.setReadOnly(`${col}4`, true);
             });
         }
     }, 150);
