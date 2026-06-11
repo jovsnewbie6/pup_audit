@@ -12,7 +12,7 @@ let isReceivingSync = false;
 // ============ WEBSOCKET/SOCKET.IO CONNECTION ============
 let socket = null;
 let socketConnected = false;
-let pollInterval = null;
+let syncInterval = null;
 
 function initializeWebSocket() {
     socket = io(window.location.origin, {
@@ -25,24 +25,14 @@ function initializeWebSocket() {
     socket.on('connect', () => {
         socketConnected = true;
         console.log('✅ Connected to server via WebSocket');
-        showNotification('🔗 Connected to real-time sync');
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-        }
     });
 
     socket.on('disconnect', () => {
         socketConnected = false;
-        showNotification('⚠️ Lost real-time connection - using fallback sync');
-        if (!pollInterval) startFallbackPolling();
     });
 
-    socket.on('connect_error', (error) => {
-        if (!pollInterval) startFallbackPolling();
-    });
-
-    if (!socketConnected) startFallbackPolling();
+    // 🚀 NEW: Bulletproof Background Auto-Sync (Never turns off)
+    startBackgroundSync();
 
     socket.on('recordCreated', (newRecord) => {
         const exists = mockDatabase.some(r => r.id === newRecord.id || r.serial === newRecord.serial);
@@ -79,6 +69,7 @@ function initializeWebSocket() {
             saveToMemory();
             
             if (currentTab === newRecord.type) {
+                renderSidebar();
                 searchRecords();
                 showNotification(`✨ New ${newRecord.type} record: ${newRecord.name}`);
             }
@@ -101,6 +92,7 @@ function initializeWebSocket() {
             }
             
             saveToMemory();
+            renderSidebar();
             searchRecords();
             showNotification(`${updatedRecord.name} status changed to: ${updatedRecord.status || 'Unknown'}`);
         }
@@ -117,9 +109,13 @@ function initializeWebSocket() {
             mockDatabase[recordIndex].deleted = true;
             mockDatabase[recordIndex].deletedAt = new Date().toISOString();
             saveToMemory();
-            if (currentTab === mockDatabase[recordIndex].type) searchRecords();
+            if (currentTab === mockDatabase[recordIndex].type) {
+                renderSidebar();
+                searchRecords();
+            }
             showNotification('A record was moved to the recycle bin');
         } else {
+            renderSidebar();
             searchRecords();
         }
     });
@@ -143,7 +139,6 @@ function initializeWebSocket() {
         const targetRecord = mockDatabase.find(r => String(r.api_id) === String(data.recordApiId));
         
         if (targetRecord) {
-            // Invisible background update
             if (!targetRecord.excelData) targetRecord.excelData = [];
             while (targetRecord.excelData.length <= data.y) {
                 targetRecord.excelData.push(Array(20).fill(""));
@@ -156,7 +151,6 @@ function initializeWebSocket() {
             }
             saveToMemory();
 
-            // Visual rendering LIVE
             if (String(currentOpenRecordId) === String(targetRecord.id) && currentSpreadsheet) {
                 isReceivingSync = true;
                 
@@ -174,45 +168,55 @@ function initializeWebSocket() {
                     currentSpreadsheet.options.columns[colIndex].readOnly = true;
                 }
                 
-                currentSpreadsheet.refresh(); // Forces the redraw visually
+                currentSpreadsheet.refresh(); 
                 isReceivingSync = false;
             }
         }
     });
 }
 
-function startFallbackPolling() {
-    if (pollInterval) return; 
+function startBackgroundSync() {
+    if (syncInterval) return; 
     
-    console.log('🔄 Starting fallback polling (Socket.io not connected)');
-    pollInterval = setInterval(async () => {
-        if (socketConnected) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-            return;
-        }
-        
+    console.log('🔄 Silent Background Auto-Sync Active (Checking every 6 seconds)');
+    
+    syncInterval = setInterval(async () => {
+        // Stop checking if logged out or app is hidden
         if (!currentToken || !document.getElementById('appContainer') || document.getElementById('appContainer').style.display === 'none') {
             return; 
         }
         
         try {
             const freshRecords = await loadRecordsFromAPI();
-            if (freshRecords) {
-                const newRecords = freshRecords.filter(sr => 
-                    !mockDatabase.some(lr => lr.api_id === sr.id || lr.id === sr.id)
-                );
+            if (!freshRecords) return;
+            
+            let dashboardNeedsRefresh = false;
+            
+            freshRecords.forEach(serverRecord => {
+                const localIndex = mockDatabase.findIndex(r => r.api_id === serverRecord.api_id || r.id === serverRecord.id);
                 
-                if (newRecords.length > 0) {
-                    mockDatabase = freshRecords;
-                    saveToMemory();
-                    if (currentTab && document.getElementById('resultsContainer')) {
-                        searchRecords();
+                if (localIndex === -1) {
+                    // Completely new record found from another user!
+                    mockDatabase.push(serverRecord);
+                    dashboardNeedsRefresh = true;
+                } else {
+                    // Existing record: check if someone else changed the status or deleted it
+                    const localRecord = mockDatabase[localIndex];
+                    if (localRecord.status !== serverRecord.status || localRecord.deleted !== serverRecord.deleted) {
+                        localRecord.status = serverRecord.status;
+                        localRecord.deleted = serverRecord.deleted;
+                        dashboardNeedsRefresh = true;
                     }
                 }
+            });
+            
+            if (dashboardNeedsRefresh) {
+                saveToMemory();
+                renderSidebar();
+                searchRecords(); // Updates the UI seamlessly without a refresh
             }
         } catch (error) {}
-    }, 10000); 
+    }, 6000); // 6 seconds is fast enough to feel instant, but slow enough to not lag the server
 }
 
 function showNotification(message) {
@@ -1727,3 +1731,4 @@ async function updateRecordOnServer(record, comment = '') {
         return false;
     }
 }
+
