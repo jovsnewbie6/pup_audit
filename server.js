@@ -58,6 +58,10 @@ server.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📡 WebSocket server initialized on port ${PORT}`);
 });
+ 
+let isReceivingSync = false; 
+
+// ============ WEBSOCKET/SOCKET.IO CONNECTION ============
 let socket = null;
 let socketConnected = false;
 let pollInterval = null;
