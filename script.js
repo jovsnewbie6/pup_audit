@@ -914,7 +914,6 @@ function openModal(id) {
     
     const isStaff = currentUser && currentUser.role !== 'Audit Supervisor';
 
-    // ---- HIDE BUTTONS FOR STAFF AUDITORS IN MODAL ----
     const deleteBtn = document.querySelector('.delete-btn');
     if (deleteBtn) {
         deleteBtn.style.display = canDeleteRecords() ? 'inline-block' : 'none';
@@ -924,7 +923,6 @@ function openModal(id) {
     if (addRowBtn) {
         addRowBtn.style.display = isStaff ? 'none' : 'inline-block';
     }
-    // --------------------------------------------------
 
     if (record.api_id) {
         fetchLogsFromServer(id, record.api_id);
@@ -936,7 +934,6 @@ function openModal(id) {
     container.innerHTML = "";
     if (currentSpreadsheet) currentSpreadsheet.destroy();
 
-    // Define headers
     const headers = [
         "No.", "Check Date", "Check Number", "Accountable Person", "Transaction Type", 
         "SO Number", "SO Date", "Project Description", "Inclusive Dates", "Location", 
@@ -958,39 +955,19 @@ function openModal(id) {
             headers, 
             Array(20).fill("")
         ];
-        
-        record.mergeCells = { A1: [20, 1], A2: [20, 1], A3: [20, 1] };
-        record.style = {};
-        
-        // Apply center alignment and bold to rows 1-3 across ALL columns
-        const headerRows = ['1', '2', '3'];
-        headerRows.forEach(row => {
-            columns.forEach(col => {
-                if (row === '1') {
-                    record.style[`${col}${row}`] = 'text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;';
-                } else {
-                    record.style[`${col}${row}`] = 'text-align: center; font-weight: bold; vertical-align: middle;';
-                }
-            });
-        });
     } else {
-        // For existing records, always ensure row 4 has complete headers
         if (!record.excelData[3]) {
             record.excelData[3] = headers;
         } else {
-            // Ensure all 20 columns in row 4 are filled with headers
             record.excelData[3] = headers.map((h, i) => h || record.excelData[3][i] || "");
         }
-        if (!record.style) record.style = {};
     }
     
-    // Always ensure row 4 (headers) is yellow for ALL records
     if (!record.style) record.style = {};
     columns.forEach(col => record.style[`${col}4`] = 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
 
     const columnConfig = [];
     for (let i = 0; i < 20; i++) {
-        // Column 12 (M) is Auditor - Dropdown RESTORED, but 'title' removed so it displays 'M' at the top
         if (i === 12) { 
             columnConfig.push({
                 type: 'dropdown',
@@ -1024,14 +1001,12 @@ function openModal(id) {
             const colLetter = String.fromCharCode(65 + parseInt(x));
             const cellRef = `${colLetter}${parseInt(y) + 1}`;
             
-            // Reapply row 4 yellow styling to prevent it from disappearing
             if (y !== 3) {
                 columns.forEach((col) => {
                     currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
                 });
             }
             
-            // BROADCAST ONLY. No logging/comments here.
             if (socketConnected && socket) {
                 socket.emit('cell_edit', {
                     recordApiId: record.api_id,
@@ -1041,27 +1016,29 @@ function openModal(id) {
                     value: value
                 });
             }
-            // Logging only happens once in closeModal via detectAndLogChanges - NOT here to prevent spam
         }
     });
     
-    // Force set the row styles after spreadsheet is created
     setTimeout(() => {
-        // Ensure rows 1-3 stay centered
-        ['1', '2', '3'].forEach(row => {
-            columns.forEach(col => {
-                if (row === '1') {
-                    currentSpreadsheet.setStyle(`${col}${row}`, 'text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;');
-                } else {
-                    currentSpreadsheet.setStyle(`${col}${row}`, 'text-align: center; font-weight: bold; vertical-align: middle;');
-                }
+        if (currentSpreadsheet) {
+            currentSpreadsheet.setMerge('A1', 20, 1);
+            currentSpreadsheet.setMerge('A2', 20, 1);
+            currentSpreadsheet.setMerge('A3', 20, 1);
+            
+            ['1', '2', '3'].forEach(row => {
+                columns.forEach(col => {
+                    if (row === '1') {
+                        currentSpreadsheet.setStyle(`${col}${row}`, 'text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;');
+                    } else {
+                        currentSpreadsheet.setStyle(`${col}${row}`, 'text-align: center; font-weight: bold; vertical-align: middle;');
+                    }
+                });
             });
-        });
-        // Ensure row 4 stays yellow
-        columns.forEach(col => {
-            currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
-        });
-    }, 100);
+            columns.forEach(col => {
+                currentSpreadsheet.setStyle(`${col}4`, 'background-color: #ffff00; font-weight: bold; text-align: center; color: #000;');
+            });
+        }
+    }, 150);
 }
 
 function detectAndLogChanges(record, newData) {
